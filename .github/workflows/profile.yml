@@ -19,6 +19,10 @@ on:
         description: 'sd, fd or sa'
         type: string
         default: sd
+      gcc_variants:
+        description: 'EasyLocal 4 GCC flag variants to time, separated by ;'
+        type: string
+        default: '-O3;-O2;-O3 -fno-inline-functions;-O3 -fno-tree-vectorize;-O3 -fno-unroll-loops'
 
 permissions:
   contents: read
@@ -103,6 +107,34 @@ jobs:
                   driver="build/$framework-$name/${framework}_comparison"
                   IFS=, read -r _ _ evaluations _ seconds < <("$driver" "${args[@]}")
                   python3 -c "print(f'$name $framework #$repetition: {$seconds:.3f} s, {$seconds * 1e9 / $evaluations:.1f} ns/eval')"
+                done
+              done
+            done
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: GCC flag variants of the EasyLocal 4 driver
+        env:
+          VARIANTS: ${{ inputs.gcc_variants }}
+        run: |
+          mapfile -t args < build/args
+          IFS=';' read -ra variants <<< "$VARIANTS"
+          {
+            echo "### EasyLocal 4 with GCC flag variants (EasyLocal 3 GCC as reference)"
+            echo '```'
+            index=0
+            for flags in "${variants[@]}"; do
+              index=$((index + 1))
+              cmake -S el3_vs_el4/el4 -B "build/el4-v$index" -G Ninja \
+                -DCMAKE_BUILD_TYPE=None -DCMAKE_CXX_COMPILER=/usr/bin/g++-16 \
+                -DCMAKE_CXX_FLAGS="$flags -DNDEBUG" \
+                -DEASYLOCAL_SOURCE_DIR="$PWD/easylocal" > /dev/null
+              cmake --build "build/el4-v$index" > /dev/null
+              for repetition in 1 2; do
+                for driver in build/el3-gcc/el3_comparison "build/el4-v$index/el4_comparison"; do
+                  IFS=, read -r _ _ evaluations _ seconds < <("$driver" "${args[@]}")
+                  label=$([ "${driver#build/el3}" != "$driver" ] && echo "el3 -O3" || echo "el4 $flags")
+                  python3 -c "print(f'{\"$label\":32} {$seconds * 1e9 / $evaluations:8.1f} ns/eval')"
                 done
               done
             done
