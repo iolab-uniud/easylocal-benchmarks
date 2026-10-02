@@ -10,7 +10,8 @@ EasyLocal documentation.
 | Directory | Content |
 | --- | --- |
 | [`el3_vs_el4/`](el3_vs_el4/README.md) | the EasyLocal example problems written in both frameworks, the benchmark matrix and its instance generator |
-| `scripts/` | `el3-vs-el4.py` runs the matrix, `summarize.py` writes the results page |
+| [`infrastructure/`](infrastructure/README.md) | neighborhood traversal, runner-level search and tracing overhead of EasyLocal |
+| `scripts/` | `el3-vs-el4.py` runs the matrix, `run-neighborhood-benchmarks.sh` the infrastructure benchmarks, `summarize.py` writes the results page |
 | `results/` | the measured results, committed by CI |
 
 ## How it runs
@@ -27,7 +28,10 @@ EasyLocal CI sends a `repository_dispatch` with the release tag) or by hand:
    so that its Benchmarks page shows them.
 
 All runs use a GitHub-hosted Ubuntu runner with GCC 16 in Release mode. Times
-on shared runners vary between runs: compare ratios and trends.
+on shared runners vary between runs: compare ratios and trends. The manual
+**Neighborhood Benchmarks** and **Trace Microbenchmarks** workflows measure the
+infrastructure of any EasyLocal ref across toolchains (Linux GCC and Clang,
+macOS AppleClang and GCC) for diagnosis; their results are artifacts only.
 
 ## Adding a problem
 

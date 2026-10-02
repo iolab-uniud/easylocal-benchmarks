@@ -5,7 +5,8 @@ name: Benchmarks
 #
 # - EasyLocal 3 (easylocal-legacy v3.3.1) is measured once per EasyLocal 3 key
 #   (scripts/el3-vs-el4.py key --el3); otherwise the stored baseline is reused.
-# - EasyLocal 4 is measured at the release that started the run.
+# - EasyLocal 4 is measured at the release that started the run, with the
+#   infrastructure benchmarks of infrastructure/.
 #
 # Secrets: EASYLOCAL_TOKEN (optional), a token allowed to start workflows of
 # iolab-uniud/easylocal, to rebuild its documentation after a publication.
@@ -180,13 +181,13 @@ jobs:
         run: |
           results="$PWD/build/results/el4/infrastructure"
           build="$PWD/build/infrastructure"
-          (cd easylocal && BENCHMARK_BUILD_DIR="$build" \
-            ./scripts/run-neighborhood-benchmarks.sh "$results" 1000000 3 123456789)
+          EASYLOCAL_SOURCE_DIR="$PWD/easylocal" BENCHMARK_BUILD_DIR="$build" \
+            ./scripts/run-neighborhood-benchmarks.sh "$results" 1000000 3 123456789
           cmake --build "$build" --target easylocal_trace_benchmark
-          trace="$build/benchmarks/neighborhood_traversal/easylocal_trace_benchmark"
           echo 'trial,mode,ns_per_evaluation,checksum' > "$results/trace.csv"
           for trial in 1 2 3 4 5; do
-            "$trace" 2>> "$results/trace.log" | tail -n +2 | sed "s/^/$trial,/" >> "$results/trace.csv"
+            "$build/easylocal_trace_benchmark" 2>> "$results/trace.log" \
+              | tail -n +2 | sed "s/^/$trial,/" >> "$results/trace.csv"
           done
 
       - name: Upload the results

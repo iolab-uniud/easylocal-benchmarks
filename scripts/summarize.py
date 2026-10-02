@@ -53,7 +53,7 @@ starts a run.
   solutions. EasyLocal 3 is measured once per benchmark matrix; EasyLocal 4 at
   every release.
 - **Infrastructure.** Neighborhood traversal, runner-level search and tracing
-  overhead (`benchmarks/neighborhood_traversal` of EasyLocal).
+  overhead (`infrastructure/` of easylocal-benchmarks).
 
 Times on shared CI runners vary by several percent between runs and machines:
 read ratios and trends, not absolute values. The speed-up compares the times
