@@ -114,16 +114,13 @@ jobs:
           mapfile -t args < build/args
           for framework in el3 el4; do
             driver="build/$framework-gcc/${framework}_comparison"
-            echo "::group::perf stat $framework"
-            perf stat -e task-clock,cycles,instructions,branch-misses,cache-misses \
-              "$driver" "${args[@]}" 2>&1 || true
-            echo "::endgroup::"
-            perf record -q -e cpu-clock -g -o "build/$framework.data" "$driver" "${args[@]}" > /dev/null 2>&1 || true
+            perf record -q -F 999 -e cpu-clock -o "build/$framework.data" \
+              "$driver" "${args[@]}" > /dev/null || true
             {
-              echo "### perf report, $framework (GCC)"
+              echo "### Hottest source lines, $framework (GCC)"
               echo '```'
               perf report -q -i "build/$framework.data" --stdio --no-children \
-                --percent-limit 1.5 -g none 2>/dev/null | head -40
+                --sort srcline -g none 2>&1 | head -30
               echo '```'
             } | tee -a "$GITHUB_STEP_SUMMARY"
           done
