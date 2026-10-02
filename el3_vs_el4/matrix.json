@@ -1,0 +1,72 @@
+{
+  "description": "EasyLocal 3 (easylocal-legacy v3.3.1) versus EasyLocal 4 on the EasyLocal example problems. Changing this file changes the matrix key: EasyLocal 4 results of different keys are not compared, and the EasyLocal 3 baseline is measured again.",
+  "instances": [
+    {
+      "name": "tsp-300",
+      "problem": "tsp",
+      "generator": {
+        "cities": 300,
+        "coordinate_range": 1000
+      },
+      "seed": 1
+    },
+    {
+      "name": "assignment-1000x20",
+      "problem": "assignment",
+      "generator": {
+        "jobs": 1000,
+        "machines": 20,
+        "max_demand": 20,
+        "capacity_slack": 0.97
+      },
+      "seed": 2
+    },
+    {
+      "name": "exam-400x20",
+      "problem": "exam",
+      "generator": {
+        "exams": 400,
+        "timeslots": 20,
+        "conflicts": 4000,
+        "max_students": 10
+      },
+      "seed": 3
+    }
+  ],
+  "algorithms": {
+    "sd": {
+      "description": "steepest descent (EL3 SteepestDescent, EL4 BestImprovement), until a local optimum"
+    },
+    "fd": {
+      "description": "first descent (EL3 FirstDescent, cyclic scan; EL4 FirstImprovement, restarting scan), until a local optimum"
+    },
+    "sa": {
+      "description": "simulated annealing with a geometric schedule (EL3 SimulatedAnnealing, EL4 SimulatedAnnealing<Classic>)"
+    }
+  },
+  "simulated_annealing": {
+    "tsp": {
+      "start_temperature": 100.0,
+      "min_temperature": 0.5,
+      "cooling_rate": 0.95,
+      "samples": 2000
+    },
+    "assignment": {
+      "start_temperature": 50.0,
+      "min_temperature": 0.5,
+      "cooling_rate": 0.95,
+      "samples": 2000
+    },
+    "exam": {
+      "start_temperature": 500.0,
+      "min_temperature": 1.0,
+      "cooling_rate": 0.95,
+      "samples": 2000
+    }
+  },
+  "seeds": [
+    1,
+    2,
+    3
+  ]
+}
