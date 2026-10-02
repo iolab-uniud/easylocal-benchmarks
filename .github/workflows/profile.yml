@@ -1,0 +1,129 @@
+name: Profile
+
+# Diagnosis of one case of the EL3-versus-EL4 matrix on the CI machine: both
+# drivers built with GCC and Clang, timed alternately, then profiled with perf.
+# Manual only; nothing is published.
+
+on:
+  workflow_dispatch:
+    inputs:
+      easylocal_ref:
+        description: 'EasyLocal tag, branch or commit'
+        type: string
+        default: main
+      instance:
+        description: 'Instance of the matrix'
+        type: string
+        default: exam-400x20
+      algorithm:
+        description: 'sd, fd or sa'
+        type: string
+        default: sd
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  profile:
+    name: Profile ${{ inputs.instance }} ${{ inputs.algorithm }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout EasyLocal
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: iolab-uniud/easylocal
+          ref: ${{ inputs.easylocal_ref }}
+          path: easylocal
+          persist-credentials: false
+
+      - name: Install the toolchains and perf
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo env DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y --no-install-recommends \
+              cmake ninja-build g++-16 clang-22 libboost-program-options-dev \
+              linux-tools-common "linux-tools-$(uname -r)" || \
+          sudo env DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y --no-install-recommends \
+              cmake ninja-build g++-16 clang-22 libboost-program-options-dev \
+              linux-tools-common linux-tools-generic
+          sudo sysctl -w kernel.perf_event_paranoid=-1 kernel.kptr_restrict=0
+          lscpu | sed -n '/^Model name/p'
+
+      - name: Build the drivers
+        run: |
+          mkdir -p build
+          curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.3.1.tar.gz \
+            | tar -xz -C build
+          flags="-g -fno-omit-frame-pointer"
+          for cc in gcc:/usr/bin/g++-16 clang:/usr/bin/clang++-22; do
+            name="${cc%%:*}"; cxx="${cc#*:}"
+            cmake -S el3_vs_el4/el3 -B "build/el3-$name" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="$cxx" \
+              -DCMAKE_CXX_FLAGS="$flags" \
+              -DEL3_SOURCE_DIR="$PWD/build/easylocal-legacy-3.3.1"
+            cmake --build "build/el3-$name"
+            cmake -S el3_vs_el4/el4 -B "build/el4-$name" -G Ninja \
+              -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="$cxx" \
+              -DCMAKE_CXX_FLAGS="$flags" \
+              -DEASYLOCAL_SOURCE_DIR="$PWD/easylocal"
+            cmake --build "build/el4-$name"
+          done
+          python3 el3_vs_el4/generate.py el3_vs_el4/matrix.json build/instances
+
+      - name: Time alternately
+        env:
+          INSTANCE: ${{ inputs.instance }}
+          ALGORITHM: ${{ inputs.algorithm }}
+        run: |
+          problem="$(python3 -c "import json; print(next(i['problem'] for i in json.load(open('el3_vs_el4/matrix.json'))['instances'] if i['name'] == '$INSTANCE'))")"
+          sa="$(python3 -c "import json; a = json.load(open('el3_vs_el4/matrix.json'))['simulated_annealing']['$problem']; print(a['start_temperature'], a['min_temperature'], a['cooling_rate'], a['samples'])")"
+          read -r t0 t1 rate samples <<< "$sa"
+          args=(--problem "$problem" --instance "build/instances/$INSTANCE.instance"
+                --initial "build/instances/$INSTANCE.seed1.sol" --algorithm "$ALGORITHM" --seed 1
+                --sa-start-temperature "$t0" --sa-min-temperature "$t1"
+                --sa-cooling-rate "$rate" --sa-samples "$samples")
+          printf '%s\n' "${args[@]}" > build/args
+          {
+            echo "### $INSTANCE $ALGORITHM, seconds and ns per evaluation"
+            echo '```'
+            for name in gcc clang; do
+              for repetition in 1 2 3; do
+                for framework in el3 el4; do
+                  driver="build/$framework-$name/${framework}_comparison"
+                  IFS=, read -r _ _ evaluations _ seconds < <("$driver" "${args[@]}")
+                  python3 -c "print(f'$name $framework #$repetition: {$seconds:.3f} s, {$seconds * 1e9 / $evaluations:.1f} ns/eval')"
+                done
+              done
+            done
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Profile
+        run: |
+          mapfile -t args < build/args
+          for framework in el3 el4; do
+            driver="build/$framework-gcc/${framework}_comparison"
+            echo "::group::perf stat $framework"
+            perf stat -e task-clock,cycles,instructions,branch-misses,cache-misses \
+              "$driver" "${args[@]}" 2>&1 || true
+            echo "::endgroup::"
+            perf record -q -e cpu-clock -g -o "build/$framework.data" "$driver" "${args[@]}" > /dev/null 2>&1 || true
+            {
+              echo "### perf report, $framework (GCC)"
+              echo '```'
+              perf report -q -i "build/$framework.data" --stdio --no-children \
+                --percent-limit 1.5 -g none 2>/dev/null | head -40
+              echo '```'
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          done
