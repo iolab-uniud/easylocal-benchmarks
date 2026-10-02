@@ -8,11 +8,13 @@
         the legacy release and the toolchain; it is recorded with the
         EasyLocal 3 results.
 
-    el3-vs-el4.py run --framework el3|el4 --driver PATH --output DIR
-                      [--toolchain ID] [--label LABEL]
-        Generate the instances, run every instance x algorithm x seed of the
-        matrix with DRIVER (the EasyLocal 3 or 4 executable, same command
-        line), and write DIR/results.csv and DIR/metadata.json.
+    el3-vs-el4.py run [--el3 PATH] [--el4 PATH] --output DIR
+                      [--repetitions N] [--toolchain ID] [--label LABEL]
+        Generate the instances and run every instance x algorithm x seed of
+        the matrix with the given drivers (same command line), N times each.
+        The frameworks alternate run by run, in an order swapped at every
+        repetition, so that a slower phase of a shared machine hits both
+        alike. Writes DIR/<framework>/results.csv and metadata.json.
 
 Standard library only.
 """
@@ -33,7 +35,7 @@ BENCH = ROOT / "el3_vs_el4"
 MATRIX = BENCH / "matrix.json"
 EL3_RELEASE = "v3.3.1"
 
-FIELDS = ["framework", "problem", "instance", "algorithm", "seed",
+FIELDS = ["framework", "problem", "instance", "algorithm", "seed", "repetition",
           "initial_cost", "final_cost", "evaluations", "iterations", "seconds"]
 
 
@@ -56,58 +58,75 @@ def el3_key(toolchain: str) -> str:
         ports)
 
 
+def command_for(driver, matrix, instances, instance, algorithm, seed):
+    problem, name = instance["problem"], instance["name"]
+    command = [
+        driver,
+        "--problem", problem,
+        "--instance", str(instances / f"{name}.instance"),
+        "--initial", str(instances / f"{name}.seed{seed}.sol"),
+        "--algorithm", algorithm,
+        "--seed", str(seed),
+    ]
+    if algorithm == "sa":
+        annealing = matrix["simulated_annealing"][problem]
+        command += [
+            "--sa-start-temperature", str(annealing["start_temperature"]),
+            "--sa-min-temperature", str(annealing["min_temperature"]),
+            "--sa-cooling-rate", str(annealing["cooling_rate"]),
+            "--sa-samples", str(annealing["samples"]),
+        ]
+    return command
+
+
 def run(args) -> int:
     matrix = json.loads(MATRIX.read_text(encoding="utf-8"))
     output = pathlib.Path(args.output)
     instances = output / "instances"
     subprocess.run([sys.executable, str(BENCH / "generate.py"), str(MATRIX), str(instances)],
                    check=True)
+    drivers = {name: path for name, path in (("el3", args.el3), ("el4", args.el4)) if path}
+    if not drivers:
+        raise SystemExit("give --el3 and/or --el4")
 
-    rows = []
+    rows = {framework: [] for framework in drivers}
     for instance in matrix["instances"]:
-        problem, name = instance["problem"], instance["name"]
-        annealing = matrix["simulated_annealing"][problem]
         for algorithm in matrix["algorithms"]:
             for seed in matrix["seeds"]:
-                command = [
-                    args.driver,
-                    "--problem", problem,
-                    "--instance", str(instances / f"{name}.instance"),
-                    "--initial", str(instances / f"{name}.seed{seed}.sol"),
-                    "--algorithm", algorithm,
-                    "--seed", str(seed),
-                ]
-                if algorithm == "sa":
-                    command += [
-                        "--sa-start-temperature", str(annealing["start_temperature"]),
-                        "--sa-min-temperature", str(annealing["min_temperature"]),
-                        "--sa-cooling-rate", str(annealing["cooling_rate"]),
-                        "--sa-samples", str(annealing["samples"]),
-                    ]
-                line = subprocess.run(command, check=True, capture_output=True,
-                                      text=True).stdout.strip().splitlines()[-1]
-                values = line.split(",")
-                rows.append([args.framework, problem, name, algorithm, seed, *values])
-                print(f"{args.framework} {name} {algorithm} seed={seed}: {line}", flush=True)
+                for repetition in range(1, args.repetitions + 1):
+                    order = list(drivers) if repetition % 2 else list(reversed(drivers))
+                    for framework in order:
+                        command = command_for(drivers[framework], matrix, instances,
+                                              instance, algorithm, seed)
+                        line = subprocess.run(command, check=True, capture_output=True,
+                                              text=True).stdout.strip().splitlines()[-1]
+                        rows[framework].append([framework, instance["problem"], instance["name"],
+                                                algorithm, seed, repetition, *line.split(",")])
+                        print(f"{framework} {instance['name']} {algorithm} seed={seed} "
+                              f"#{repetition}: {line}", flush=True)
 
-    with open(output / "results.csv", "w", newline="", encoding="utf-8") as stream:
-        writer = csv.writer(stream)
-        writer.writerow(FIELDS)
-        writer.writerows(rows)
-
-    metadata = {
-        "framework": args.framework,
-        "label": args.label,
-        "matrix_key": matrix_key(),
-        "el3_key": el3_key(args.toolchain) if args.framework == "el3" else None,
-        "toolchain": args.toolchain,
-        "el3_release": EL3_RELEASE if args.framework == "el3" else None,
-        "commit": os.environ.get("GITHUB_SHA", ""),
-        "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-        "platform": f"{platform.system()} {platform.machine()}",
-        "runner_image": os.environ.get("ImageOS", "") + " " + os.environ.get("ImageVersion", ""),
-    }
-    (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    for framework, framework_rows in rows.items():
+        directory = output / framework
+        directory.mkdir(parents=True, exist_ok=True)
+        with open(directory / "results.csv", "w", newline="", encoding="utf-8") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(FIELDS)
+            writer.writerows(framework_rows)
+        metadata = {
+            "framework": framework,
+            "label": args.label,
+            "matrix_key": matrix_key(),
+            "el3_key": el3_key(args.toolchain) if framework == "el3" else None,
+            "toolchain": args.toolchain,
+            "el3_release": EL3_RELEASE if framework == "el3" else None,
+            "repetitions": args.repetitions,
+            "commit": os.environ.get("GITHUB_SHA", ""),
+            "date": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+            "platform": f"{platform.system()} {platform.machine()}",
+            "runner_image": os.environ.get("ImageOS", "") + " " + os.environ.get("ImageVersion", ""),
+        }
+        (directory / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n",
+                                                 encoding="utf-8")
     return 0
 
 
@@ -120,8 +139,9 @@ def main() -> int:
     key.add_argument("--toolchain", default="local")
 
     run_parser = commands.add_parser("run")
-    run_parser.add_argument("--framework", choices=["el3", "el4"], required=True)
-    run_parser.add_argument("--driver", required=True)
+    run_parser.add_argument("--el3", help="the EasyLocal 3 driver")
+    run_parser.add_argument("--el4", help="the EasyLocal 4 driver")
+    run_parser.add_argument("--repetitions", type=int, default=3)
     run_parser.add_argument("--output", required=True)
     run_parser.add_argument("--toolchain", default="local")
     run_parser.add_argument("--label", default="local")

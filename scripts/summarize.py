@@ -88,17 +88,25 @@ def version_key(label: str):
 
 
 def aggregate(rows):
-    """Means over the seeds, per (instance, algorithm)."""
-    groups = defaultdict(list)
+    """Per (instance, algorithm): the median time of each seed over its
+    repetitions, then means over the seeds."""
+    runs = defaultdict(list)
     for row in rows:
-        groups[(row["instance"], row["algorithm"])].append(row)
+        runs[(row["instance"], row["algorithm"], row["seed"])].append(row)
+    groups = defaultdict(list)
+    for (instance, algorithm, _), repetitions in runs.items():
+        groups[(instance, algorithm)].append({
+            "cost": float(repetitions[0]["final_cost"]),
+            "evaluations": int(repetitions[0]["evaluations"]),
+            "seconds": statistics.median(float(r["seconds"]) for r in repetitions),
+        })
     result = {}
-    for key, group in groups.items():
-        seconds = sum(float(r["seconds"]) for r in group)
-        evaluations = sum(int(r["evaluations"]) for r in group)
+    for key, seeds in groups.items():
+        seconds = sum(s["seconds"] for s in seeds)
+        evaluations = sum(s["evaluations"] for s in seeds)
         result[key] = {
-            "cost": statistics.fmean(float(r["final_cost"]) for r in group),
-            "seconds": seconds / len(group),
+            "cost": statistics.fmean(s["cost"] for s in seeds),
+            "seconds": seconds / len(seeds),
             "ns_per_evaluation": seconds * 1e9 / evaluations if evaluations else math.nan,
         }
     return result
@@ -217,8 +225,9 @@ def render(results: pathlib.Path) -> str:
     else:
         lines += [
             f"Measured on {metadata['date'][:10]}, both frameworks on the same "
-            "machine. Means over the seeds; speed-up is the ratio of the times "
-            "per evaluation (higher is better for EasyLocal 4).",
+            "machine, alternating run by run. Times are medians over the "
+            "repetitions, then means over the seeds; speed-up is the ratio of "
+            "the times per evaluation (higher is better for EasyLocal 4).",
             "",
             *comparison_table(el3[1], latest),
         ]

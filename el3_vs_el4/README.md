@@ -45,26 +45,24 @@ where `seconds` times the search only.
 
 ## Running it
 
-From the root of this repository, with an EasyLocal checkout in `easylocal/`:
+From the root of this repository, with an EasyLocal checkout in `easylocal/`
+(Boost.program_options is needed for EasyLocal 3):
 
 ```sh
 cmake -S el3_vs_el4/el4 -B build/el4 -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DEASYLOCAL_SOURCE_DIR=$PWD/easylocal
 cmake --build build/el4
-python3 scripts/el3-vs-el4.py run --framework el4 --driver build/el4/el4_comparison \
-    --output build/el4-results
-```
-
-and for EasyLocal 3 (Boost.program_options required):
-
-```sh
 curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.3.1.tar.gz | tar -xz -C build
 cmake -S el3_vs_el4/el3 -B build/el3 -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DEL3_SOURCE_DIR=$PWD/build/easylocal-legacy-3.3.1
 cmake --build build/el3
-python3 scripts/el3-vs-el4.py run --framework el3 --driver build/el3/el3_comparison \
-    --output build/el3-results
+python3 scripts/el3-vs-el4.py run --el3 build/el3/el3_comparison \
+    --el4 build/el4/el4_comparison --output build/results
 ```
+
+The two drivers alternate run by run, in an order swapped at every
+repetition (`--repetitions`, default 3); times are medians over the
+repetitions.
 
 In CI both frameworks are measured in the same job, on the same machine, at
 every EasyLocal release: shared runners differ by up to a factor of two, so a
