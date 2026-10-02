@@ -19,13 +19,13 @@ EasyLocal documentation.
 The Benchmarks workflow starts when EasyLocal publishes a release (the
 EasyLocal CI sends a `repository_dispatch` with the release tag) or by hand:
 
-1. **EasyLocal 3** is measured once per EasyLocal 3 key: a digest of the
-   matrix, the instance generator, the EasyLocal 3 ports, the legacy release
-   and the toolchain. A stored baseline in `results/el3/<key>/` is reused.
-2. **EasyLocal 4** is measured at the requested release, together with the
-   infrastructure benchmarks of that release, into `results/el4/<version>/`.
-3. The results are committed here, and the EasyLocal documentation is rebuilt
-   so that its Benchmarks page shows them.
+1. **EasyLocal 3 and EasyLocal 4** run the matrix in the same job, on the same
+   machine (shared runners differ by up to a factor of two, so a speed-up is
+   only computed between results measured together), followed by the
+   infrastructure benchmarks of the release; all into `results/<version>/`.
+2. The results are committed here, and the EasyLocal documentation is rebuilt
+   so that its Benchmarks page shows them. Results of different matrices
+   (`scripts/el3-vs-el4.py key`) are not compared.
 
 All runs use a GitHub-hosted Ubuntu runner with GCC 16 in Release mode. Times
 on shared runners vary between runs: compare ratios and trends. The manual

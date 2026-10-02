@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Write the Benchmarks page (Markdown) from the stored results.
 
-    summarize.py [RESULTS_DIR] --output FILE [--toolchain gcc16]
+    summarize.py [RESULTS_DIR] --output FILE
 
 RESULTS_DIR (default: results/ of this repository) is filled by the
-Benchmarks workflow:
+Benchmarks workflow, one directory per measured EasyLocal version:
 
-    el3/<el3 key>/{results.csv,metadata.json}         EasyLocal 3, once per key
-    el4/<version>/comparison/{results.csv,metadata.json}
-    el4/<version>/infrastructure/{search,traversal,trace}.csv
+    <version>/el3/{results.csv,metadata.json}   EasyLocal 3, same job
+    <version>/el4/{results.csv,metadata.json}   EasyLocal 4
+    <version>/infrastructure/{search,traversal,trace}.csv
+
+The two frameworks of a version are measured on the same machine, so each
+version is compared with its own EasyLocal 3 measurement.
 
 The EasyLocal documentation renders its Benchmarks page with this script.
 
@@ -50,8 +53,8 @@ starts a run.
   2-opt, Assignment with job reassignment, Exam Timetabling with exam moves)
   are written in both frameworks with the same cost functions, delta
   evaluations and neighborhood orders, and searched from the same initial
-  solutions. EasyLocal 3 is measured once per benchmark matrix; EasyLocal 4 at
-  every release.
+  solutions. Both frameworks are measured at every release, in the same job
+  on the same machine.
 - **Infrastructure.** Neighborhood traversal, runner-level search and tracing
   overhead (`infrastructure/` of easylocal-benchmarks).
 
@@ -184,56 +187,58 @@ def infrastructure(directory: pathlib.Path) -> list[str]:
     return lines
 
 
-def render(results: pathlib.Path, toolchain: str) -> str:
+def render(results: pathlib.Path) -> str:
     current = el3_vs_el4.matrix_key()
-    el3 = None
-    for metadata_path in sorted(results.glob("el3/*/metadata.json")):
+
+    def measured(path: pathlib.Path):
+        metadata_path = path / "metadata.json"
+        if not metadata_path.exists():
+            return None
         metadata = read_json(metadata_path)
-        if metadata.get("matrix_key") == current and metadata.get("toolchain") == toolchain:
-            el3 = (metadata, aggregate(read_rows(metadata_path.parent / "results.csv")))
+        if metadata.get("matrix_key") != current:
+            return None
+        return metadata, aggregate(read_rows(path / "results.csv"))
 
     versions = []
-    for metadata_path in results.glob("el4/*/comparison/metadata.json"):
-        metadata = read_json(metadata_path)
-        if metadata.get("matrix_key") == current:
-            versions.append((metadata["label"], metadata,
-                             aggregate(read_rows(metadata_path.parent / "results.csv"))))
+    for directory in results.glob("*/"):
+        el4 = measured(directory / "el4")
+        if el4 is not None:
+            versions.append((directory.name, el4, measured(directory / "el3")))
     versions.sort(key=lambda v: version_key(v[0]))
 
     lines = [INTRO.rstrip()]
     if not versions:
         return "\n".join(lines) + "\n" + NO_RESULTS
 
-    label, metadata, latest = versions[-1]
+    label, (metadata, latest), el3 = versions[-1]
     lines += ["", f"## EasyLocal 3 versus EasyLocal 4 {label}", ""]
     if el3 is None:
-        lines += ["The EasyLocal 3 baseline for the current matrix has not been measured yet."]
+        lines += ["EasyLocal 3 was not measured with this version."]
     else:
-        el3_metadata, el3_results = el3
         lines += [
-            f"EasyLocal 3 measured on {el3_metadata['date'][:10]}, EasyLocal 4 "
-            f"{label} on {metadata['date'][:10]}. Means over "
-            f"the seeds; speed-up is the ratio of the times per evaluation "
-            "(higher is better for EasyLocal 4).",
+            f"Measured on {metadata['date'][:10]}, both frameworks on the same "
+            "machine. Means over the seeds; speed-up is the ratio of the times "
+            "per evaluation (higher is better for EasyLocal 4).",
             "",
-            *comparison_table(el3_results, latest),
+            *comparison_table(el3[1], latest),
         ]
-        if len(versions) > 1:
-            instances = sorted({key[0] for key in latest})
-            lines += ["", "### Across versions", "",
-                      "Geometric mean of the speed-ups over the algorithms, per instance.", "",
-                      "| Version | Date | " + " | ".join(instances) + " | Overall |",
-                      "| --- | --- | " + " | ".join("---:" for _ in instances) + " | ---: |"]
-            for label_i, metadata_i, results_i in reversed(versions):
-                ratios = speedups(el3_results, results_i)
-                per_instance = [geomean(v for k, v in ratios.items() if k[0] == i)
-                                for i in instances]
-                lines.append(
-                    f"| {label_i} | {metadata_i['date'][:10]} | " +
-                    " | ".join(f"{r:.2f}×" for r in per_instance) +
-                    f" | {geomean(ratios.values()):.2f}× |")
+    paired = [(l, m, r, e) for l, (m, r), e in versions if e is not None]
+    if len(paired) > 1:
+        instances = sorted({key[0] for key in latest})
+        lines += ["", "### Across versions", "",
+                  "Geometric mean of the speed-ups over the algorithms, per instance.", "",
+                  "| Version | Date | " + " | ".join(instances) + " | Overall |",
+                  "| --- | --- | " + " | ".join("---:" for _ in instances) + " | ---: |"]
+        for label_i, metadata_i, results_i, el3_i in reversed(paired):
+            ratios = speedups(el3_i[1], results_i)
+            per_instance = [geomean(v for k, v in ratios.items() if k[0] == i)
+                            for i in instances]
+            lines.append(
+                f"| {label_i} | {metadata_i['date'][:10]} | " +
+                " | ".join(f"{r:.2f}×" for r in per_instance) +
+                f" | {geomean(ratios.values()):.2f}× |")
 
-    infrastructure_dir = results / "el4" / label / "infrastructure"
+    infrastructure_dir = results / label / "infrastructure"
     infra = infrastructure(infrastructure_dir) if infrastructure_dir.exists() else []
     if infra:
         lines += ["", f"## Infrastructure of EasyLocal 4 {label}", *infra]
@@ -244,9 +249,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument("results", type=pathlib.Path, nargs="?", default=ROOT / "results")
     parser.add_argument("--output", type=pathlib.Path, required=True)
-    parser.add_argument("--toolchain", default="gcc16")
     args = parser.parse_args()
-    args.output.write_text(render(args.results, args.toolchain), encoding="utf-8")
+    args.output.write_text(render(args.results), encoding="utf-8")
     return 0
 
 

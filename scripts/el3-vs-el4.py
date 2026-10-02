@@ -5,9 +5,8 @@
         Print the matrix key, a digest of the matrix and of the instance
         generator: results with the same matrix key are comparable. With
         --el3, print the EasyLocal 3 key, which adds the EasyLocal 3 ports,
-        the legacy release and the toolchain: the EasyLocal 3 baseline is
-        measured once per EasyLocal 3 key, so changing any of them measures it
-        again.
+        the legacy release and the toolchain; it is recorded with the
+        EasyLocal 3 results.
 
     el3-vs-el4.py run --framework el3|el4 --driver PATH --output DIR
                       [--toolchain ID] [--label LABEL]

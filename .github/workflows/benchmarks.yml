@@ -1,12 +1,11 @@
 name: Benchmarks
 
 # EasyLocal 4 against EasyLocal 3 on the example problems, and the EasyLocal
-# infrastructure benchmarks; results committed to results/.
+# infrastructure benchmarks; results committed to results/<version>/.
 #
-# - EasyLocal 3 (easylocal-legacy v3.3.1) is measured once per EasyLocal 3 key
-#   (scripts/el3-vs-el4.py key --el3); otherwise the stored baseline is reused.
-# - EasyLocal 4 is measured at the release that started the run, with the
-#   infrastructure benchmarks of infrastructure/.
+# EasyLocal 3 (easylocal-legacy v3.3.1) and EasyLocal 4 are measured in the
+# same job, on the same machine: shared runners differ by up to a factor of
+# two, so a speed-up is only computed between results measured together.
 #
 # Secrets: EASYLOCAL_TOKEN (optional), a token allowed to start workflows of
 # iolab-uniud/easylocal, to rebuild its documentation after a publication.
@@ -21,15 +20,11 @@ on:
         type: string
         default: main
       label:
-        description: 'Label of the EasyLocal 4 results (default: the tag, or <ref>-<commit>)'
+        description: 'Label of the results (default: the tag, or <ref>-<commit>)'
         type: string
         default: ''
       publish:
         description: 'Commit the results'
-        type: boolean
-        default: false
-      remeasure_el3:
-        description: 'Measure EasyLocal 3 even if a baseline is stored'
         type: boolean
         default: false
 
@@ -50,78 +45,10 @@ env:
   EASYLOCAL_REF: ${{ github.event.client_payload.ref || inputs.easylocal_ref || 'main' }}
 
 jobs:
-  el3:
-    name: EasyLocal 3 baseline
+  measure:
+    name: Measure
     runs-on: ubuntu-26.04
-    timeout-minutes: 60
-    outputs:
-      key: ${{ steps.key.outputs.key }}
-      measured: ${{ steps.stored.outputs.measure }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: EasyLocal 3 key
-        id: key
-        run: echo "key=$(python3 scripts/el3-vs-el4.py key --el3 --toolchain "$TOOLCHAIN")" >> "$GITHUB_OUTPUT"
-
-      - name: Look for a stored baseline
-        id: stored
-        env:
-          KEY: ${{ steps.key.outputs.key }}
-          REMEASURE: ${{ inputs.remeasure_el3 }}
-        run: |
-          measure=true
-          if [ "$REMEASURE" != true ] && [ -f "results/el3/$KEY/results.csv" ]; then
-            measure=false
-          fi
-          echo "measure=$measure" >> "$GITHUB_OUTPUT"
-          echo "EasyLocal 3 key $KEY: measure=$measure"
-
-      - name: Install the toolchain
-        if: ${{ steps.stored.outputs.measure == 'true' }}
-        run: |
-          sudo apt-get -o Acquire::Retries=3 update
-          sudo env DEBIAN_FRONTEND=noninteractive \
-            apt-get install -y --no-install-recommends \
-              cmake ninja-build g++-16 libboost-program-options-dev
-
-      - name: Build the EasyLocal 3 driver
-        if: ${{ steps.stored.outputs.measure == 'true' }}
-        run: |
-          mkdir -p build
-          curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.3.1.tar.gz \
-            | tar -xz -C build
-          cmake -S el3_vs_el4/el3 -B build/el3 -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_COMPILER="$CXX" \
-            -DEL3_SOURCE_DIR="$PWD/build/easylocal-legacy-3.3.1"
-          cmake --build build/el3 --parallel 2
-
-      - name: Run the matrix
-        if: ${{ steps.stored.outputs.measure == 'true' }}
-        run: |
-          python3 scripts/el3-vs-el4.py run --framework el3 \
-            --driver build/el3/el3_comparison \
-            --output build/results/el3 \
-            --toolchain "$TOOLCHAIN" --label el3
-
-      - name: Upload the results
-        if: ${{ steps.stored.outputs.measure == 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: el3-results
-          retention-days: 30
-          path: |
-            build/results/el3/results.csv
-            build/results/el3/metadata.json
-
-  el4:
-    name: EasyLocal 4
-    runs-on: ubuntu-26.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     outputs:
       label: ${{ steps.label.outputs.label }}
     steps:
@@ -158,10 +85,20 @@ jobs:
         run: |
           sudo apt-get -o Acquire::Retries=3 update
           sudo env DEBIAN_FRONTEND=noninteractive \
-            apt-get install -y --no-install-recommends cmake ninja-build g++-16
+            apt-get install -y --no-install-recommends \
+              cmake ninja-build g++-16 libboost-program-options-dev
+          lscpu | sed -n '/^Model name/p;/^CPU(s)/p'
 
-      - name: Build the EasyLocal 4 driver
+      - name: Build the drivers
         run: |
+          mkdir -p build
+          curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.3.1.tar.gz \
+            | tar -xz -C build
+          cmake -S el3_vs_el4/el3 -B build/el3 -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER="$CXX" \
+            -DEL3_SOURCE_DIR="$PWD/build/easylocal-legacy-3.3.1"
+          cmake --build build/el3 --parallel 2
           cmake -S el3_vs_el4/el4 -B build/el4 -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER="$CXX" \
@@ -172,14 +109,20 @@ jobs:
         env:
           LABEL: ${{ steps.label.outputs.label }}
         run: |
-          python3 scripts/el3-vs-el4.py run --framework el4 \
-            --driver build/el4/el4_comparison \
-            --output build/results/el4/comparison \
+          out="build/results/$LABEL"
+          python3 scripts/el3-vs-el4.py run --framework el3 \
+            --driver build/el3/el3_comparison --output "$out/el3" \
             --toolchain "$TOOLCHAIN" --label "$LABEL"
+          python3 scripts/el3-vs-el4.py run --framework el4 \
+            --driver build/el4/el4_comparison --output "$out/el4" \
+            --toolchain "$TOOLCHAIN" --label "$LABEL"
+          rm -rf "$out/el3/instances" "$out/el4/instances"
 
       - name: Infrastructure benchmarks
+        env:
+          LABEL: ${{ steps.label.outputs.label }}
         run: |
-          results="$PWD/build/results/el4/infrastructure"
+          results="$PWD/build/results/$LABEL/infrastructure"
           build="$PWD/build/infrastructure"
           EASYLOCAL_SOURCE_DIR="$PWD/easylocal" BENCHMARK_BUILD_DIR="$build" \
             ./scripts/run-neighborhood-benchmarks.sh "$results" 1000000 3 123456789
@@ -189,28 +132,24 @@ jobs:
             "$build/easylocal_trace_benchmark" 2>> "$results/trace.log" \
               | tail -n +2 | sed "s/^/$trial,/" >> "$results/trace.csv"
           done
+          rm -f "$results"/*.log "$results/summary.md"
 
       - name: Upload the results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: el4-results
+          name: results
           retention-days: 30
-          path: |
-            build/results/el4/comparison/results.csv
-            build/results/el4/comparison/metadata.json
-            build/results/el4/infrastructure/*.csv
+          path: build/results/
 
   publish:
     name: Publish
-    needs: [el3, el4]
+    needs: measure
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write  # results/
     env:
-      KEY: ${{ needs.el3.outputs.key }}
-      MEASURED_EL3: ${{ needs.el3.outputs.measured }}
-      LABEL: ${{ needs.el4.outputs.label }}
+      LABEL: ${{ needs.measure.outputs.label }}
       PUBLISH: ${{ github.event_name == 'repository_dispatch' || inputs.publish }}
     steps:
       - name: Checkout
@@ -219,18 +158,13 @@ jobs:
       - name: Download the results
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          path: build/artifacts
+          name: results
+          path: build/results
 
       - name: Add them to results/
         run: |
-          if [ "$MEASURED_EL3" = true ]; then
-            rm -rf "results/el3/$KEY"
-            mkdir -p "results/el3/$KEY"
-            cp build/artifacts/el3-results/* "results/el3/$KEY/"
-          fi
-          rm -rf "results/el4/$LABEL"
-          mkdir -p "results/el4/$LABEL"
-          cp -R build/artifacts/el4-results/* "results/el4/$LABEL/"
+          rm -rf "results/$LABEL"
+          cp -R "build/results/$LABEL" "results/$LABEL"
           python3 scripts/summarize.py results --output build/benchmarks.md
           cat build/benchmarks.md >> "$GITHUB_STEP_SUMMARY"
 

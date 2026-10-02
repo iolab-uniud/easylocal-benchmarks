@@ -66,6 +66,6 @@ python3 scripts/el3-vs-el4.py run --framework el3 --driver build/el3/el3_compari
     --output build/el3-results
 ```
 
-In CI, EasyLocal 3 is measured only when its key (`scripts/el3-vs-el4.py key
---el3`: the matrix, the generator, the ports, the legacy release, the
-toolchain) has no stored baseline in `results/el3/`.
+In CI both frameworks are measured in the same job, on the same machine, at
+every EasyLocal release: shared runners differ by up to a factor of two, so a
+speed-up is only computed between results measured together.
