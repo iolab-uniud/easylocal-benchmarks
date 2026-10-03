@@ -49,7 +49,7 @@
       "start_temperature": 100.0,
       "min_temperature": 0.5,
       "cooling_rate": 0.95,
-      "samples": 2000
+      "samples": 20000
     },
     "assignment": {
       "start_temperature": 50.0,

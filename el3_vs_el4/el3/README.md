@@ -58,9 +58,10 @@ solution.
   copy, but reuses the cached value of the current solution, so EasyLocal 3
   evaluates the component twice per move instead of once.
 - `FirstMove`/`NextMove` enumerate in the order of the EasyLocal 4
-  `first_move`/`next_move`; `RandomMove` draws a uniform rank (TSP, decoded by
-  the same linear scan as `move_at_rank`) or ordinal (assignment, exam) with
-  `Random::Uniform`. An empty neighborhood throws `EmptyNeighborhood`.
+  `first_move`/`next_move`; `RandomMove` draws uniformly as the EasyLocal 4
+  `random_move`, with `Random::Uniform`: two edges redrawn until they form a
+  valid 2-opt move (TSP), or an ordinal over the jobs or exams and their other
+  machines or timeslots (assignment, exam). An empty neighborhood throws `EmptyNeighborhood`.
   `FeasibleMove` is the EasyLocal 4 `is_valid`.
 - Algorithms: `sd` is `SteepestDescent`; `fd` is `FirstDescent`; `sa` is `SimulatedAnnealing` with
   `start_temperature`, `min_temperature`, `cooling_rate` and

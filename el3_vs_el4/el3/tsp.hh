@@ -16,6 +16,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace tsp
@@ -159,14 +160,26 @@ public:
         return ValidEdgePair(st.tour.size(), mv.first_edge, mv.second_edge);
     }
 
-    // Uniform over the valid pairs: a rank decoded by the same linear scan
-    // as the EasyLocal 4 move_at_rank.
+    // Uniform over the valid pairs in expected O(1), as the EasyLocal 4
+    // random_move: two edges drawn independently, ordered, and drawn again
+    // while they do not form a valid move.
     void RandomMove(const Tour& st, TwoOpt& mv) const override
     {
-        const auto count = MoveCount(st.tour.size());
-        if (count == 0)
+        const auto n = st.tour.size();
+        if (MoveCount(n) == 0)
             throw EmptyNeighborhood();
-        mv = MoveAtRank(st.tour.size(), Random::Uniform<std::size_t>(0, count - 1));
+        while (true)
+        {
+            auto first_edge = Random::Uniform<std::size_t>(0, n - 1);
+            auto second_edge = Random::Uniform<std::size_t>(0, n - 1);
+            if (second_edge < first_edge)
+                std::swap(first_edge, second_edge);
+            if (ValidEdgePair(n, first_edge, second_edge))
+            {
+                mv = TwoOpt{first_edge, second_edge};
+                return;
+            }
+        }
     }
 
     void FirstMove(const Tour& st, TwoOpt& mv) const override
@@ -197,21 +210,6 @@ private:
     static std::size_t MoveCount(std::size_t n)
     {
         return n >= 4 ? n * (n - 3) / 2 : 0;
-    }
-
-    static TwoOpt MoveAtRank(std::size_t n, std::size_t rank)
-    {
-        std::size_t current_rank = 0;
-        for (std::size_t first_edge = 0; first_edge < n; ++first_edge)
-            for (std::size_t second_edge = first_edge + 1; second_edge < n; ++second_edge)
-            {
-                if (!ValidEdgePair(n, first_edge, second_edge))
-                    continue;
-                if (current_rank == rank)
-                    return TwoOpt{first_edge, second_edge};
-                ++current_rank;
-            }
-        throw std::logic_error("2-opt move rank must decode to a valid move");
     }
 
     static bool FindFrom(std::size_t n, std::size_t initial_first_edge,
