@@ -39,7 +39,9 @@ EasyLocal CI sends a `repository_dispatch` with the release tag) or by hand:
 
 A manual run can measure one part only (input `parts`); publishing it
 (input `publish`, false by default) replaces that part's files and keeps the
-others.
+others. It is meant to measure again a part of a version already measured
+(the same `easylocal_ref`, or the same `label`): the Benchmarks page shows the
+latest version that has the EasyLocal 3 versus EasyLocal 4 comparison.
 
 All runs use a GitHub-hosted Ubuntu runner with GCC 16 in Release mode. Times
 on shared runners vary between runs: compare ratios and trends. The manual
