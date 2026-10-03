@@ -27,6 +27,20 @@
 namespace
 {
 
+// The assignment problem with a solution hash: a search then emits
+// solution_visited, with the hash of every solution it reaches, to the tracers
+// that observe it.
+class HashedAssignmentSolutionManager : public assignment::AssignmentSolutionManager
+{
+public:
+    using assignment::AssignmentSolutionManager::AssignmentSolutionManager;
+
+    std::uint64_t hash(const assignment::AssignmentSolution& solution) const
+    {
+        return easylocal::hash_range(solution.assignment);
+    }
+};
+
 struct counting_tracer
 {
     template<class Event>
@@ -166,19 +180,25 @@ int main()
         instance.demand[job] = static_cast<assignment::quantity_type>(1 + (job * 17) % 9);
     }
 
-    auto runner = easylocal::make_runner<easylocal::runners::FirstImprovement>(
-                      {.max_evaluations = 500'000})
-        | (easylocal::solution_manager<assignment::AssignmentSolutionManager>()
-           | easylocal::cost::apply(
-                 [](const assignment::CapacityValue& capacity) {
-                     return capacity.total_overload;
-                 },
-                 easylocal::component<assignment::CapacityCostComponent>()))
-        | (easylocal::neighborhood<assignment::ReassignJobNeighborhoodExplorer>()
-           | easylocal::delta<
-                 assignment::CapacityCostComponent,
-                 benchmarks::assignment::ReassignCapacityDeltaEvaluator>());
+    const auto make_runner = []<class SolutionManager>(std::type_identity<SolutionManager>) {
+        return easylocal::make_runner<easylocal::runners::FirstImprovement>(
+                   {.max_evaluations = 500'000})
+            | (easylocal::solution_manager<SolutionManager>()
+               | easylocal::cost::apply(
+                     [](const assignment::CapacityValue& capacity) {
+                         return capacity.total_overload;
+                     },
+                     easylocal::component<assignment::CapacityCostComponent>()))
+            | (easylocal::neighborhood<assignment::ReassignJobNeighborhoodExplorer>()
+               | easylocal::delta<
+                     assignment::CapacityCostComponent,
+                     benchmarks::assignment::ReassignCapacityDeltaEvaluator>());
+    };
+    auto runner = make_runner(std::type_identity<assignment::AssignmentSolutionManager>{});
     auto bound = runner.bind(instance);
+    // The same search on the problem with a solution hash.
+    auto hashed_runner = make_runner(std::type_identity<HashedAssignmentSolutionManager>{});
+    auto hashed = hashed_runner.bind(instance);
 
     const auto reference = bound.run(initial);
     using bound_type = std::remove_reference_t<decltype(bound)>;
@@ -228,6 +248,31 @@ int main()
         },
         [&] { async_binary.flush(); },
         repetitions);
+
+    // With a solution hash: the binary recorder records every solution visited
+    // (a hash per committed move), or leaves them out at compile time.
+    discard_streambuf visited_discarded;
+    std::ostream visited_discarded_output{&visited_discarded};
+    easylocal::trace::buffered_binary_recorder<cost_type> visited_binary{
+        visited_discarded_output};
+    const auto binary_visited = measure([&] {
+        const auto result = hashed.run(initial, easylocal::with(visited_binary));
+        return result_token(result);
+    }, repetitions);
+    visited_binary.flush();
+
+    discard_streambuf unvisited_discarded;
+    std::ostream unvisited_discarded_output{&unvisited_discarded};
+    easylocal::trace::buffered_binary_recorder<cost_type> unvisited_binary{
+        unvisited_discarded_output};
+    auto without_visits =
+        easylocal::trace::without<easylocal::trace::event::solution_visited>(
+            unvisited_binary);
+    const auto binary_without_visits = measure([&] {
+        const auto result = hashed.run(initial, easylocal::with(without_visits));
+        return result_token(result);
+    }, repetitions);
+    unvisited_binary.flush();
 
     const auto temp_directory = std::filesystem::temp_directory_path();
     const auto buffered_file_path =
@@ -286,6 +331,11 @@ int main()
     std::cout << "memory," << memory.first / evaluations << ',' << memory.second << '\n';
     std::cout << "binary-buffered-discard," << binary_streaming.first / evaluations << ','
               << binary_streaming.second << '\n';
+    std::cout << "binary-buffered-discard-visited," << binary_visited.first / evaluations
+              << ',' << binary_visited.second << '\n';
+    std::cout << "binary-buffered-discard-without-visits,"
+              << binary_without_visits.first / evaluations << ','
+              << binary_without_visits.second << '\n';
     std::cout << "binary-async-producer-discard,"
               << async_binary_streaming.producer_ns / evaluations << ','
               << async_binary_streaming.checksum << '\n';
@@ -310,6 +360,8 @@ int main()
         std::cerr << "async_binary_bytes=" << async_binary_discarded.bytes()
                   << ",async_binary_bytes_per_event="
                   << async_binary_discarded.bytes() / events << '\n';
+        std::cerr << "visited_binary_bytes=" << visited_discarded.bytes()
+                  << ",without_visits_binary_bytes=" << unvisited_discarded.bytes() << '\n';
         std::cerr << "binary_file_bytes=" << binary_file_bytes
                   << ",async_binary_file_bytes=" << async_binary_file_bytes << '\n';
     }
@@ -320,7 +372,8 @@ int main()
         memory.second == checksum && binary_streaming.second == checksum &&
         async_binary_streaming.checksum == checksum &&
         binary_file.second == checksum &&
-        async_binary_file.checksum == checksum
+        async_binary_file.checksum == checksum &&
+        binary_visited.second == checksum && binary_without_visits.second == checksum
 
         ;
     return checksums_match ? 0 : 2;

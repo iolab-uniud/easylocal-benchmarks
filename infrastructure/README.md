@@ -50,7 +50,13 @@ The project also builds two tracing probes:
 - `easylocal_trace_benchmark`, an end-to-end First Improvement benchmark that
   compares the uninstrumented baseline, explicit `null_tracer`, counter-only
   tracing, in-memory tracing, block-buffered ELTR recording, asynchronous ELTR
-  recording, and buffered/asynchronous temporary-file output;
+  recording, and buffered/asynchronous temporary-file output; on a variant of
+  the problem with a solution hash it also measures buffered ELTR recording
+  with the visited solutions (`binary-buffered-discard-visited`, a hash per
+  committed move) and without them, left out at compile time with
+  `trace::without<event::solution_visited>`
+  (`binary-buffered-discard-without-visits`, which should cost what
+  `binary-buffered-discard` costs);
 - `easylocal_trace_cost_encoding_benchmark`, a focused ELTR encoding benchmark
   for scalar, lexicographic, and hierarchical cost payloads.
 
