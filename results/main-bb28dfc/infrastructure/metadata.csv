@@ -1,0 +1,29 @@
+key,value
+schema_version,1
+toolchain,gcc16
+os,Linux
+os_release,7.0.0-1012-azure
+os_description,Ubuntu 26.04.1 LTS
+architecture,x86_64
+runner_os,Linux
+runner_arch,X64
+hardware_model,AMD EPYC 7763 64-Core Processor
+logical_cpus,4
+compiler,/usr/bin/x86_64-linux-gnu-g++-16
+compiler_version,x86_64-linux-gnu-g++-16 (Ubuntu 16-20260322-1ubuntu1) 16.0.1 20260322 (experimental) [trunk r16-8246-g569ace1fa50]
+compiler_target,x86_64-linux-gnu
+cxxflags,
+stdlib,libstdc++
+stdlib_version,20260322
+cmake,cmake version 4.4.3
+ninja,1.13.2
+sdkroot,
+xcode,n/a
+generator,Ninja
+build_type,Release
+cpp_standard,23
+git_commit,bb28dfcfbd4935767c8d1952b0aa58c8319b24ca
+git_dirty,false
+target_work,1000000
+trials,3
+seed,123456789
