@@ -254,6 +254,17 @@ def infrastructure(directory: pathlib.Path) -> list[str]:
                   "| --- | ---: | ---: | ---: |"]
         lines += [f"| {mode} | {baseline:.2f} | {value:.2f} | {value / baseline:.2f}× |"
                   for (mode,), value in medians.items() if mode != "baseline"]
+    encoding = directory / "trace-cost-encoding.csv"
+    if encoding.exists():
+        rows = read_rows(encoding)
+        times = median_by(rows, ["cost_model"], "ns_per_event")
+        sizes = {row["cost_model"]: row["bytes_per_event"] for row in rows}
+        lines += ["", "### ELTR cost encoding", "",
+                  "Median ns per encoded event, by the layout of the cost.", "",
+                  "| Cost | ns/event | bytes/event |",
+                  "| --- | ---: | ---: |"]
+        lines += [f"| {model} | {value:.2f} | {sizes[model]} |"
+                  for (model,), value in times.items()]
     return lines
 
 
@@ -264,70 +275,101 @@ def read_key_values(path: pathlib.Path) -> dict[str, str]:
     return {row["key"]: row["value"] for row in read_rows(path)}
 
 
-def environment(label: str, metadata: dict, directory: pathlib.Path) -> list[str]:
-    """How a version was measured: the machine, the toolchain and the method,
-    from the metadata the runs recorded."""
-    machine = read_key_values(directory / "infrastructure" / "metadata.csv")
-    rows = [("Where", "GitHub Actions, GitHub-hosted runner"
-             + (f" (image {metadata['runner_image']})" if metadata.get("runner_image") else ""))]
+# The parts of a measurement and the file of the machine each ran on; results
+# measured before the parts had jobs of their own have only the neighborhood
+# one, which then describes the whole run.
+PARTS = [
+    ("EasyLocal 3 vs 4", "el3-vs-el4-metadata.csv"),
+    ("Neighborhood", "infrastructure/metadata.csv"),
+    ("Trace", "infrastructure/trace-metadata.csv"),
+]
+
+
+def machine_rows(machine: dict[str, str]) -> dict[str, str]:
+    """The operating system, architecture, compiler and build of a machine."""
+    rows = {}
     if machine.get("os_description"):
         system = machine["os_description"]
         if machine.get("os_release"):
             system += f", kernel {machine['os_release']}"
-        rows.append(("Operating system", system))
-    elif metadata.get("platform"):
-        rows.append(("Operating system", metadata["platform"]))
+        rows["Operating system"] = system
     if machine.get("architecture"):
         cpu = machine["architecture"]
         if machine.get("hardware_model"):
             cpu += f", {machine['hardware_model']}"
         if machine.get("logical_cpus"):
             cpu += f", {machine['logical_cpus']} logical CPUs"
-        rows.append(("Architecture", cpu))
+        rows["Architecture"] = cpu
     if machine.get("compiler_version"):
         compiler = machine["compiler_version"]
         if machine.get("stdlib"):
             compiler += f"; {machine['stdlib']}"
-        rows.append(("Compiler", compiler))
-    elif metadata.get("toolchain"):
-        rows.append(("Compiler", metadata["toolchain"]))
+        rows["Compiler"] = compiler
     build = [machine.get(key) for key in ("cmake", "generator")]
-    build_type = machine.get("build_type", "Release")
-    standard = machine.get("cpp_standard", "23")
-    rows.append(("Build", ", ".join([b for b in build if b] + [build_type, f"C++{standard}"])))
-    versions = f"EasyLocal 4 {label}"
-    if machine.get("git_commit"):
-        versions += f" ({machine['git_commit'][:7]})"
-    if metadata.get("el3_release"):
-        versions += f"; EasyLocal 3 {metadata['el3_release']}"
-    elif metadata.get("framework") == "el4":
-        versions += "; EasyLocal 3 v3.3.1"
-    rows.append(("Versions", versions))
-    if metadata.get("commit"):
-        rows.append(("Benchmarks", f"easylocal-benchmarks {metadata['commit'][:7]}"))
-    rows.append(("Date", metadata["date"][:10]))
+    rows["Build"] = ", ".join(
+        [b for b in build if b]
+        + [machine.get("build_type", "Release"), f"C++{machine.get('cpp_standard', '23')}"])
+    return rows
 
+
+def environment(label: str, metadata: dict, directory: pathlib.Path) -> list[str]:
+    """How a version was measured: the machine of each part, the toolchain and
+    the method, from the metadata the runs recorded."""
+    parts = [(name, read_key_values(directory / path)) for name, path in PARTS]
+    parts = [(name, machine) for name, machine in parts if machine]
+    if len(parts) == 1 and parts[0][0] == "Neighborhood":
+        parts = [("All parts", parts[0][1])]
+
+    where = "GitHub Actions, GitHub-hosted runner"
+    if metadata.get("runner_image"):
+        where += f" (image {metadata['runner_image']})"
+    commit = next(
+        (machine["git_commit"][:7] for _, machine in parts if machine.get("git_commit")), "")
+    versions = f"EasyLocal 4 {label}" + (f" ({commit})" if commit else "")
+    versions += f"; EasyLocal 3 {metadata.get('el3_release') or 'v3.3.1'}"
+    lines = [
+        "",
+        "## How it was measured",
+        "",
+        f"- **Where:** {where}.",
+        f"- **Versions:** {versions}.",
+    ]
+    if metadata.get("commit"):
+        lines.append(f"- **Benchmarks:** easylocal-benchmarks {metadata['commit'][:7]}.")
+    lines.append(f"- **Date:** {metadata['date'][:10]}.")
+    if len(parts) > 1:
+        lines.append(
+            "- **Jobs:** each part runs in a job of its own, one after the other, "
+            "possibly on a different machine; EasyLocal 3 and EasyLocal 4 always "
+            "share theirs.")
+
+    if parts:
+        rows = [(name, machine_rows(machine)) for name, machine in parts]
+        keys = list(dict.fromkeys(key for _, row in rows for key in row))
+        lines += [
+            "",
+            "| | " + " | ".join(name for name, _ in rows) + " |",
+            "| --- | " + " | ".join("---" for _ in rows) + " |",
+            *[
+                f"| {key} | " + " | ".join(row.get(key, "–") for _, row in rows) + " |"
+                for key in keys
+            ],
+        ]
+
+    neighborhood = read_key_values(directory / "infrastructure" / "metadata.csv")
     method = (
         f"Each instance, algorithm and delta mode is run on every seed of the matrix, "
         f"{metadata.get('repetitions', 3)} times per framework; a time is the median of "
         "the repetitions, then the mean over the seeds. The two frameworks run in the "
         "same job, alternating run by run, from the same initial solutions.")
-    if machine.get("trials"):
+    if neighborhood.get("trials"):
         method += (
-            f" The infrastructure benchmarks report the median of {machine['trials']} "
-            "trials.")
-    return [
-        "",
-        "## How it was measured",
-        "",
-        "| | |",
-        "| --- | --- |",
-        *[f"| {name} | {value} |" for name, value in rows],
-        "",
-        method,
-        "",
-        DISCLAIMER.rstrip(),
-    ]
+            f" The neighborhood benchmarks report the median of {neighborhood['trials']} "
+            "trials")
+        trace = read_key_values(directory / "infrastructure" / "trace-metadata.csv")
+        method += (
+            f", the tracing ones of {trace['trials']}." if trace.get("trials") else ".")
+    return lines + ["", method, "", DISCLAIMER.rstrip()]
 
 
 def render(results: pathlib.Path) -> str:

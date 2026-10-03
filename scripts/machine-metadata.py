@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Emit structured metadata for one neighborhood benchmark run."""
+"""Write the machine and toolchain of a benchmark job as key,value CSV.
+
+    machine-metadata.py --output FILE --repo-root EASYLOCAL_CHECKOUT
+                        [--target-work N --trials N --seed N]
+
+Every part of the Benchmarks workflow runs in a job of its own, possibly on a
+different machine, and records it with this script; the parameters of the
+neighborhood benchmarks are written when given.
+"""
 
 from __future__ import annotations
 
@@ -92,9 +100,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--repo-root", required=True, type=Path)
-    parser.add_argument("--target-work", required=True)
-    parser.add_argument("--trials", required=True)
-    parser.add_argument("--seed", required=True)
+    parser.add_argument("--target-work")
+    parser.add_argument("--trials")
+    parser.add_argument("--seed")
     args = parser.parse_args()
 
     compiler = resolve_compiler()
@@ -137,11 +145,17 @@ def main() -> int:
         ("generator", "Ninja"),
         ("build_type", "Release"),
         ("cpp_standard", "23"),
-        ("target_work", args.target_work),
-        ("trials", args.trials),
-        ("seed", args.seed),
         ("git_commit", git_commit),
         ("git_dirty", git_dirty),
+    ]
+    rows += [
+        (key, value)
+        for key, value in (
+            ("target_work", args.target_work),
+            ("trials", args.trials),
+            ("seed", args.seed),
+        )
+        if value is not None
     ]
 
     args.output.parent.mkdir(parents=True, exist_ok=True)

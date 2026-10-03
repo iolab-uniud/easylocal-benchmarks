@@ -1,0 +1,37 @@
+name: Set up a benchmark job
+description: >
+  Checks out EasyLocal at the commit chosen by the prepare job and installs the
+  toolchain (GCC 16, CMake, Ninja, and the extra packages a part needs). The
+  benchmarks repository must be checked out first.
+
+inputs:
+  easylocal_commit:
+    description: The EasyLocal commit to measure
+    required: true
+  packages:
+    description: Extra apt packages
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout EasyLocal
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        repository: iolab-uniud/easylocal
+        ref: ${{ inputs.easylocal_commit }}
+        path: easylocal
+        persist-credentials: false
+
+    - name: Install the toolchain
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      run: |
+        sudo apt-get -o Acquire::Retries=3 update
+        # shellcheck disable=SC2086 # PACKAGES is a list
+        sudo env DEBIAN_FRONTEND=noninteractive \
+          apt-get install -y --no-install-recommends \
+            cmake ninja-build g++-16 $PACKAGES
+        lscpu | sed -n '/^Model name/p;/^CPU(s)/p'

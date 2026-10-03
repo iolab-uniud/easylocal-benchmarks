@@ -54,7 +54,7 @@ fi
         easylocal_neighborhood_search_benchmark
 } > "${results_dir}/build.log" 2>&1
 
-python3 "${repo_root}/scripts/neighborhood-benchmark-metadata.py" \
+python3 "${repo_root}/scripts/machine-metadata.py" \
     --output "${results_dir}/metadata.csv" \
     --repo-root "${easylocal_dir}" \
     --target-work "${target_work}" \

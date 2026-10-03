@@ -3,11 +3,20 @@ name: Benchmarks
 # EasyLocal 4 against EasyLocal 3 on the example problems, and the EasyLocal
 # infrastructure benchmarks; results committed to results/<version>/.
 #
-# EasyLocal 3 (easylocal-legacy v3.3.1) and EasyLocal 4 are measured in the
-# same job, on the same machine, alternating run by run and repeating each
-# run three times: shared runners differ by up to a factor of two between
-# machines and drift within one, so a speed-up is only computed between
-# results measured together.
+# One job per responsibility, run one after the other:
+#   prepare      the EasyLocal commit to measure and the label of the results;
+#   el3-vs-el4   EasyLocal 3 (easylocal-legacy v3.3.1) and EasyLocal 4 on the
+#                matrix of el3_vs_el4/, in the same job, on the same machine,
+#                alternating run by run and repeating each run three times:
+#                shared runners differ by up to a factor of two between
+#                machines and drift within one, so a speed-up is only
+#                computed between results measured together;
+#   neighborhood neighborhood traversal and runner-level search;
+#   trace        tracing overhead and ELTR cost encoding;
+#   publish      merges the parts into results/<label>/, commits them and
+#                rebuilds the EasyLocal documentation.
+# Each part records the machine it ran on. A manual run may measure one part
+# only; publishing it replaces that part's files and keeps the others.
 #
 # Secrets: EASYLOCAL_TOKEN (optional), a token allowed to start workflows of
 # iolab-uniud/easylocal, to rebuild its documentation after a publication.
@@ -25,6 +34,11 @@ on:
         description: 'Label of the results (default: the tag, or <ref>-<commit>)'
         type: string
         default: ''
+      parts:
+        description: 'Parts to measure'
+        type: choice
+        options: [all, el3-vs-el4, neighborhood, trace]
+        default: all
       publish:
         description: 'Commit the results'
         type: boolean
@@ -44,52 +58,64 @@ defaults:
 env:
   TOOLCHAIN: gcc16
   CXX: /usr/bin/g++-16
-  EASYLOCAL_REF: ${{ github.event.client_payload.ref || inputs.easylocal_ref || 'main' }}
+  # A release measures everything.
+  PARTS: ${{ inputs.parts || 'all' }}
 
 jobs:
-  measure:
-    name: Measure
+  prepare:
+    name: Prepare
     runs-on: ubuntu-26.04
-    timeout-minutes: 90
+    timeout-minutes: 5
     outputs:
+      commit: ${{ steps.label.outputs.commit }}
       label: ${{ steps.label.outputs.label }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
       - name: Checkout EasyLocal
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: iolab-uniud/easylocal
-          ref: ${{ env.EASYLOCAL_REF }}
+          ref: ${{ github.event.client_payload.ref || inputs.easylocal_ref || 'main' }}
           path: easylocal
           persist-credentials: false
 
       - name: Label
         id: label
         env:
+          EASYLOCAL_REF: ${{ github.event.client_payload.ref || inputs.easylocal_ref || 'main' }}
           INPUT_LABEL: ${{ inputs.label }}
         run: |
-          commit="$(git -C easylocal rev-parse --short HEAD)"
+          commit="$(git -C easylocal rev-parse HEAD)"
+          short="$(git -C easylocal rev-parse --short HEAD)"
           if [ -n "$INPUT_LABEL" ]; then
             label="$INPUT_LABEL"
           elif git -C easylocal tag --points-at HEAD | grep -qx "$EASYLOCAL_REF"; then
             label="$EASYLOCAL_REF"
           else
-            label="${EASYLOCAL_REF//\//-}-$commit"
+            label="${EASYLOCAL_REF//\//-}-$short"
           fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
           echo "label=$label" >> "$GITHUB_OUTPUT"
-          echo "EasyLocal $EASYLOCAL_REF ($commit): $label"
+          echo "EasyLocal $EASYLOCAL_REF ($short): $label, parts: $PARTS"
 
-      - name: Install the toolchain
-        run: |
-          sudo apt-get -o Acquire::Retries=3 update
-          sudo env DEBIAN_FRONTEND=noninteractive \
-            apt-get install -y --no-install-recommends \
-              cmake ninja-build g++-16 libboost-program-options-dev
-          lscpu | sed -n '/^Model name/p;/^CPU(s)/p'
+  el3-vs-el4:
+    name: EasyLocal 3 versus EasyLocal 4
+    needs: prepare
+    if: ${{ contains(fromJSON('["all", "el3-vs-el4"]'), inputs.parts || 'all') }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 90
+    env:
+      LABEL: ${{ needs.prepare.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up
+        uses: ./.github/actions/setup
+        with:
+          easylocal_commit: ${{ needs.prepare.outputs.commit }}
+          packages: libboost-program-options-dev
 
       - name: Build the drivers
         run: |
@@ -108,48 +134,107 @@ jobs:
           cmake --build build/el4 --parallel 2
 
       - name: Run the matrix
-        env:
-          LABEL: ${{ steps.label.outputs.label }}
         run: |
           out="build/results/$LABEL"
+          python3 scripts/machine-metadata.py \
+            --output "$out/el3-vs-el4-metadata.csv" --repo-root easylocal
           python3 scripts/el3-vs-el4.py run \
             --el3 build/el3/el3_comparison --el4 build/el4/el4_comparison \
             --output "$out" --repetitions 3 \
             --toolchain "$TOOLCHAIN" --label "$LABEL"
           rm -rf "$out/instances"
 
-      - name: Infrastructure benchmarks
-        env:
-          LABEL: ${{ steps.label.outputs.label }}
+      - name: Upload the results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: results-el3-vs-el4
+          retention-days: 30
+          path: build/results/
+
+  neighborhood:
+    name: Neighborhood traversal and search
+    needs: [prepare, el3-vs-el4]
+    # After the previous part, also when it was not selected.
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success'
+          && contains(fromJSON('["all", "neighborhood"]'), inputs.parts || 'all') }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    env:
+      LABEL: ${{ needs.prepare.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up
+        uses: ./.github/actions/setup
+        with:
+          easylocal_commit: ${{ needs.prepare.outputs.commit }}
+
+      - name: Run the benchmarks
         run: |
           results="$PWD/build/results/$LABEL/infrastructure"
-          build="$PWD/build/infrastructure"
-          EASYLOCAL_SOURCE_DIR="$PWD/easylocal" BENCHMARK_BUILD_DIR="$build" \
+          EASYLOCAL_SOURCE_DIR="$PWD/easylocal" BENCHMARK_BUILD_DIR="$PWD/build/neighborhood" \
             ./scripts/run-neighborhood-benchmarks.sh "$results" 1000000 3 123456789
-          cmake --build "$build" --target easylocal_trace_benchmark
-          echo 'trial,mode,ns_per_evaluation,checksum' > "$results/trace.csv"
-          for trial in 1 2 3 4 5; do
-            "$build/easylocal_trace_benchmark" 2>> "$results/trace.log" \
-              | tail -n +2 | sed "s/^/$trial,/" >> "$results/trace.csv"
-          done
           rm -f "$results"/*.log "$results/summary.md"
 
       - name: Upload the results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: results
+          name: results-neighborhood
+          retention-days: 30
+          path: build/results/
+
+  trace:
+    name: Tracing
+    needs: [prepare, neighborhood]
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success'
+          && contains(fromJSON('["all", "trace"]'), inputs.parts || 'all') }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    env:
+      LABEL: ${{ needs.prepare.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up
+        uses: ./.github/actions/setup
+        with:
+          easylocal_commit: ${{ needs.prepare.outputs.commit }}
+
+      - name: Run the benchmarks
+        run: |
+          results="$PWD/build/results/$LABEL/infrastructure"
+          EASYLOCAL_SOURCE_DIR="$PWD/easylocal" BENCHMARK_BUILD_DIR="$PWD/build/trace" \
+            ./scripts/run-trace-benchmarks.sh "$results" 5
+          rm -f "$results"/*.log
+
+      - name: Upload the results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: results-trace
           retention-days: 30
           path: build/results/
 
   publish:
     name: Publish
-    needs: measure
+    needs: [prepare, el3-vs-el4, neighborhood, trace]
+    # When every selected part succeeded.
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success'
+          && !contains(needs.*.result, 'failure') }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       contents: write  # results/
     env:
-      LABEL: ${{ needs.measure.outputs.label }}
+      LABEL: ${{ needs.prepare.outputs.label }}
       PUBLISH: ${{ github.event_name == 'repository_dispatch' || inputs.publish }}
     steps:
       - name: Checkout
@@ -158,13 +243,15 @@ jobs:
       - name: Download the results
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: results
+          pattern: results-*
+          merge-multiple: true
           path: build/results
 
       - name: Add them to results/
         run: |
-          rm -rf "results/$LABEL"
-          cp -R "build/results/$LABEL" "results/$LABEL"
+          # The parts measured replace their files; the others stay.
+          mkdir -p "results/$LABEL"
+          cp -R "build/results/$LABEL/." "results/$LABEL/"
           python3 scripts/summarize.py results --output build/benchmarks.md
           cat build/benchmarks.md >> "$GITHUB_STEP_SUMMARY"
 
@@ -174,7 +261,7 @@ jobs:
           git add results
           git -c user.name="github-actions[bot]" \
               -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -q -m "results: EasyLocal $LABEL"
+              commit -q -m "results: EasyLocal $LABEL ($PARTS)"
           git pull -q --rebase
           git push -q
 
