@@ -2,7 +2,7 @@
 //
 //   el4_comparison --problem tsp|assignment|exam --instance FILE
 //       --initial FILE --algorithm sd|fd|sa --seed N
-//       [--delta-mode all|mixed|none]
+//       --delta-mode all|mixed|none
 //       [--sa-start-temperature T --sa-min-temperature T
 //        --sa-cooling-rate R --sa-samples N]
 //
@@ -14,10 +14,9 @@
 //
 // --delta-mode chooses which cost components have a delta evaluator: all of
 // them (all), some (mixed) or none, when every move is evaluated on a
-// candidate solution. Without it, each problem runs the configuration of its
-// example: all for TSP, none for assignment, mixed for exam. TSP has a single
-// component, hence no mixed mode. The deltas the examples lack are in
-// ../../common.
+// candidate solution. The examples themselves run all for TSP, none for
+// assignment, mixed for exam. TSP has a single component, hence no mixed
+// mode. The deltas the examples lack are in ../../common.
 
 #include <easylocal/app/io.hpp>
 #include <easylocal/helpers/recipes.hpp>
@@ -64,7 +63,7 @@ struct Options
     std::string instance;
     std::string initial;
     std::string algorithm;
-    std::string delta_mode; // empty: the example's configuration
+    std::string delta_mode;
     std::uint64_t seed{1};
     el::runners::temperature::ClassicParameters annealing{};
 };
@@ -89,12 +88,9 @@ auto parse(int argc, char* argv[]) -> Options
         .instance = required("--instance"),
         .initial = required("--initial"),
         .algorithm = required("--algorithm"),
+        .delta_mode = required("--delta-mode"),
         .seed = std::stoull(required("--seed")),
     };
-    if (const auto found = values.find("--delta-mode"); found != values.end())
-    {
-        options.delta_mode = found->second;
-    }
     if (options.algorithm == "sa")
     {
         options.annealing = {
@@ -201,7 +197,7 @@ void run_tsp(const Options& options)
                                     el::component<tsp::TourLengthComponent>());
     const auto neighborhood = el::neighborhood<tsp::TwoOptNeighborhoodExplorer>();
     const auto& mode = options.delta_mode;
-    if (mode.empty() || mode == "all")
+    if (mode == "all")
         run(options, input, initial, sm,
             neighborhood
                 | el::delta<tsp::TourLengthComponent,
@@ -233,7 +229,7 @@ void run_assignment(const Options& options)
     const auto capacity = el::delta<assignment::CapacityCostComponent,
                                     deltas::ReassignCapacityDeltaEvaluator>();
     const auto& mode = options.delta_mode;
-    if (mode.empty() || mode == "none")
+    if (mode == "none")
         run(options, input, initial, sm, neighborhood);
     else if (mode == "mixed")
         run(options, input, initial, sm, neighborhood | capacity);
@@ -265,7 +261,7 @@ void run_exam(const Options& options)
                      | el::delta<exam::ConsecutiveExamComponent,
                                  exam::ConsecutiveExamDeltaEvaluator>();
     const auto& mode = options.delta_mode;
-    if (mode.empty() || mode == "mixed")
+    if (mode == "mixed")
         run(options, input, initial, sm, mixed);
     else if (mode == "all")
         run(options, input, initial, sm,

@@ -3,7 +3,7 @@
 //
 //   el3_comparison --problem tsp|assignment|exam --instance FILE
 //       --initial FILE --algorithm sd|fd|sa --seed N
-//       [--delta-mode all|mixed|none]
+//       --delta-mode all|mixed|none
 //       [--sa-start-temperature T --sa-min-temperature T
 //        --sa-cooling-rate R --sa-samples N]
 //
@@ -12,8 +12,7 @@
 // writes the final solution, for checking it. --delta-mode is as in the
 // EasyLocal 4 driver: the components without a delta are attached with
 // AddCostComponent, so EasyLocal 3 evaluates them on a copy of the solution
-// with the move applied; without it, each problem runs the configuration of
-// the EasyLocal 4 example (all for TSP, none for assignment, mixed for exam).
+// with the move applied.
 
 #include "assignment.hh"
 #include "exam.hh"
@@ -43,7 +42,7 @@ using namespace EasyLocal::Core;
 struct Options
 {
     std::string problem, instance, initial, algorithm, output;
-    std::string delta_mode; // empty: the EasyLocal 4 example's configuration
+    std::string delta_mode;
     unsigned int seed = 1;
     double start_temperature = 0.0, min_temperature = 0.0, cooling_rate = 0.0;
     unsigned int samples = 0;
@@ -68,8 +67,7 @@ Options Parse(int argc, char* argv[])
     o.seed = static_cast<unsigned int>(std::stoul(required("--seed")));
     if (values.count("--output"))
         o.output = values["--output"];
-    if (values.count("--delta-mode"))
-        o.delta_mode = values["--delta-mode"];
+    o.delta_mode = required("--delta-mode");
     if (o.algorithm == "sa")
     {
         o.start_temperature = std::stod(required("--sa-start-temperature"));
@@ -147,7 +145,7 @@ void Run(const Options& o, const Input& in, const Solution& initial,
     throw std::runtime_error("unsupported --delta-mode " + o.delta_mode + " for " + o.problem);
 }
 
-// all (the default): the 2-opt delta; none: no delta.
+// all, as in the EasyLocal 4 example: the 2-opt delta; none: no delta.
 void RunTsp(const Options& o)
 {
     const tsp::Input in(o.instance);
@@ -158,7 +156,7 @@ void RunTsp(const Options& o)
     sm.AddCostComponent(length);
     tsp::TwoOptNeighborhoodExplorer ne(in, sm);
     tsp::TwoOptTourLengthDelta delta(in, length);
-    if (o.delta_mode.empty() || o.delta_mode == "all")
+    if (o.delta_mode == "all")
         ne.AddDeltaCostComponent(delta);
     else if (o.delta_mode == "none")
         ne.AddCostComponent(length);
@@ -167,8 +165,8 @@ void RunTsp(const Options& o)
     Run(o, in, initial, sm, ne);
 }
 
-// none (the default): no delta; mixed: the overload delta only; all: the
-// overload and the load-imbalance deltas.
+// none, as in the EasyLocal 4 example: no delta; mixed: the overload delta
+// only; all: the overload and the load-imbalance deltas.
 void RunAssignment(const Options& o)
 {
     const assignment::Input in(o.instance);
@@ -182,7 +180,7 @@ void RunAssignment(const Options& o)
     assignment::ReassignJobNeighborhoodExplorer ne(in, sm);
     assignment::ReassignOverloadDelta overload_delta(in, overload);
     assignment::ReassignLoadImbalanceDelta imbalance_delta(in, imbalance);
-    if (o.delta_mode.empty() || o.delta_mode == "none")
+    if (o.delta_mode == "none")
     {
         ne.AddCostComponent(overload);
         ne.AddCostComponent(imbalance);
@@ -202,8 +200,9 @@ void RunAssignment(const Options& o)
     Run(o, in, initial, sm, ne);
 }
 
-// mixed (the default): conflict and consecutive-exam deltas, none for the
-// timeslot load; all: the timeslot-load delta too; none: no delta.
+// mixed, as in the EasyLocal 4 example: conflict and consecutive-exam
+// deltas, none for the timeslot load; all: the timeslot-load delta too; none:
+// no delta.
 void RunExam(const Options& o)
 {
     const exam::Input in(o.instance);
@@ -220,7 +219,7 @@ void RunExam(const Options& o)
     exam::StudentConflictsDelta conflicts_delta(in, conflicts);
     exam::ConsecutiveExamsDelta consecutive_delta(in, consecutive);
     exam::TimeslotLoadDelta load_delta(in, load);
-    if (o.delta_mode.empty() || o.delta_mode == "mixed")
+    if (o.delta_mode == "mixed")
     {
         ne.AddDeltaCostComponent(conflicts_delta);
         ne.AddDeltaCostComponent(consecutive_delta);

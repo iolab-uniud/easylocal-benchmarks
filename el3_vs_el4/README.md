@@ -16,15 +16,14 @@ Both drivers take the same command line,
 
 ```text
 --problem tsp|assignment|exam --instance FILE --initial FILE
---algorithm sd|fd|sa --seed N [--delta-mode all|mixed|none]
+--algorithm sd|fd|sa --seed N --delta-mode all|mixed|none
 [--sa-start-temperature T --sa-min-temperature T --sa-cooling-rate R --sa-samples N]
 ```
 
 and print one line, `initial_cost,final_cost,evaluations,iterations,seconds`,
-where `seconds` times the search only. Without `--delta-mode` each problem
-runs the configuration of its EasyLocal 4 example (see below).
-`scripts/el3-vs-el4.py` always passes it and writes it in the `delta_mode`
-column of `results.csv`.
+where `seconds` times the search only. `--delta-mode` is required (the
+modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
+`delta_mode` column of `results.csv`.
 
 ## What is compared
 
