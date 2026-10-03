@@ -124,10 +124,18 @@ def seconds(value: float) -> str:
     return f"{value:.3f}"
 
 
+def ratio(value: float) -> str:
+    """A speed-up, in bold when it favors EasyLocal 4."""
+    if math.isnan(value):
+        return "–"
+    text = f"{value:.2f}×"
+    return f"**{text}**" if value > 1 else text
+
+
 def comparison_table(el3, el4) -> list[str]:
     lines = [
-        "| Instance | Algorithm | Cost EL3 | Cost EL4 | Time EL3 (s) | Time EL4 (s) "
-        "| ns/eval EL3 | ns/eval EL4 | Speed-up |",
+        "| Instance | Algorithm | Speed-up | Cost EL3 | Cost EL4 | Time EL3 (s) "
+        "| Time EL4 (s) | ns/eval EL3 | ns/eval EL4 |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for key in sorted(el4, key=lambda k: (k[0], list(ALGORITHMS).index(k[1]))):
@@ -136,10 +144,10 @@ def comparison_table(el3, el4) -> list[str]:
             continue
         lines.append(
             f"| {key[0]} | {ALGORITHMS.get(key[1], key[1])} "
+            f"| {ratio(old['ns_per_evaluation'] / new['ns_per_evaluation'])} "
             f"| {number(old['cost'])} | {number(new['cost'])} "
             f"| {seconds(old['seconds'])} | {seconds(new['seconds'])} "
-            f"| {old['ns_per_evaluation']:.1f} | {new['ns_per_evaluation']:.1f} "
-            f"| {old['ns_per_evaluation'] / new['ns_per_evaluation']:.2f}× |")
+            f"| {old['ns_per_evaluation']:.1f} | {new['ns_per_evaluation']:.1f} |")
     return lines
 
 
@@ -160,6 +168,24 @@ def median_by(rows, keys, value):
     return {key: statistics.median(values) for key, values in groups.items()}
 
 
+def variant_table(medians, row_headers, unit) -> list[str]:
+    """One row per leading key, one column per variant (the last key), the
+    fastest in bold."""
+    variants = sorted({key[-1] for key in medians})
+    rows = sorted({key[:-1] for key in medians})
+    lines = ["| " + " | ".join(row_headers) + " | "
+             + " | ".join(f"{v} ({unit})" for v in variants) + " |",
+             "| " + " | ".join("---" for _ in row_headers) + " | "
+             + " | ".join("---:" for _ in variants) + " |"]
+    for row in rows:
+        values = [medians.get((*row, variant), math.nan) for variant in variants]
+        fastest = min((v for v in values if not math.isnan(v)), default=math.nan)
+        cells = ["–" if math.isnan(v) else (f"**{v:.2f}**" if v == fastest else f"{v:.2f}")
+                 for v in values]
+        lines.append("| " + " | ".join(row) + " | " + " | ".join(cells) + " |")
+    return lines
+
+
 def infrastructure(directory: pathlib.Path) -> list[str]:
     lines = []
     search = directory / "search.csv"
@@ -167,31 +193,28 @@ def infrastructure(directory: pathlib.Path) -> list[str]:
         medians = median_by(read_rows(search), ["domain", "algorithm", "variant"],
                             "ns_per_evaluation")
         lines += ["", "### Runner-level search", "",
-                  "Median ns per evaluation over the trials.", "",
-                  "| Domain | Algorithm | Variant | ns/eval |",
-                  "| --- | --- | --- | ---: |"]
-        lines += [f"| {d} | {a} | {v} | {value:.2f} |"
-                  for (d, a, v), value in sorted(medians.items())]
+                  "Median ns per evaluation over the trials, per variant; the fastest "
+                  "in bold.", "",
+                  *variant_table(medians, ["Domain", "Algorithm"], "ns/eval")]
     traversal = directory / "traversal.csv"
     if traversal.exists():
         medians = median_by(read_rows(traversal), ["domain", "workload", "variant"],
                             "ns_per_move")
         lines += ["", "### Neighborhood traversal", "",
-                  "Median ns per move over the trials.", "",
-                  "| Domain | Workload | Variant | ns/move |",
-                  "| --- | --- | --- | ---: |"]
-        lines += [f"| {d} | {w} | {v} | {value:.2f} |"
-                  for (d, w, v), value in sorted(medians.items())]
+                  "Median ns per move over the trials, per variant; the fastest in "
+                  "bold.", "",
+                  *variant_table(medians, ["Domain", "Workload"], "ns/move")]
     trace = directory / "trace.csv"
     if trace.exists():
         medians = median_by(read_rows(trace), ["mode"], "ns_per_evaluation")
         baseline = medians.get(("baseline",), math.nan)
         lines += ["", "### Tracing overhead", "",
-                  "Median ns per evaluation of a First Improvement run, per tracer.", "",
-                  "| Tracer | ns/eval | vs. no tracer |",
-                  "| --- | ---: | ---: |"]
-        lines += [f"| {mode} | {value:.2f} | {value / baseline:.2f}× |"
-                  for (mode,), value in medians.items()]
+                  "Median ns per evaluation of a First Improvement run, without a "
+                  "tracer and with each tracer; the slow-down is their ratio.", "",
+                  "| Tracer | ns/eval without | ns/eval with | Slow-down |",
+                  "| --- | ---: | ---: | ---: |"]
+        lines += [f"| {mode} | {baseline:.2f} | {value:.2f} | {value / baseline:.2f}× |"
+                  for (mode,), value in medians.items() if mode != "baseline"]
     return lines
 
 
@@ -246,8 +269,8 @@ def render(results: pathlib.Path) -> str:
                             for i in instances]
             lines.append(
                 f"| {label_i} | {metadata_i['date'][:10]} | " +
-                " | ".join(f"{r:.2f}×" for r in per_instance) +
-                f" | {geomean(ratios.values()):.2f}× |")
+                " | ".join(ratio(r) for r in per_instance) +
+                f" | {ratio(geomean(ratios.values()))} |")
 
     infrastructure_dir = results / label / "infrastructure"
     infra = infrastructure(infrastructure_dir) if infrastructure_dir.exists() else []

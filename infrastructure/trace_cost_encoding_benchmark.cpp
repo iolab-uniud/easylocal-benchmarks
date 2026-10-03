@@ -8,6 +8,7 @@
 #include <ostream>
 #include <streambuf>
 #include <string_view>
+#include <vector>
 
 namespace
 {
@@ -56,6 +57,12 @@ struct lexicographic_binary_cost_writer
         out.i64(cost.get<0>());
         out.i64(cost.get<1>());
     }
+
+    [[nodiscard]] static auto fields() -> std::vector<easylocal::trace::binary_field>
+    {
+        using enum easylocal::trace::binary_type;
+        return {{"0", i64}, {"1", i64}};
+    }
 };
 
 struct hierarchical_binary_cost_writer
@@ -66,6 +73,12 @@ struct hierarchical_binary_cost_writer
     {
         lexicographic_binary_cost_writer{}(out, cost.hard());
         out.i64(cost.soft());
+    }
+
+    [[nodiscard]] static auto fields() -> std::vector<easylocal::trace::binary_field>
+    {
+        using enum easylocal::trace::binary_type;
+        return {{"hard.0", i64}, {"hard.1", i64}, {"soft", i64}};
     }
 };
 
@@ -139,7 +152,7 @@ int main()
         "scalar-i64",
         12,
         10,
-        easylocal::trace::arithmetic_binary_cost_writer{});
+        easylocal::trace::default_binary_cost_writer<scalar_cost>{});
     run_case(
         "lexicographic-2xi64",
         lexicographic_current,
