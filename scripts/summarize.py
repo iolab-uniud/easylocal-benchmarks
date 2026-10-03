@@ -68,13 +68,24 @@ starts a run.
 - **Infrastructure.** Neighborhood traversal, runner-level search and tracing
   overhead (`infrastructure/` of easylocal-benchmarks).
 
-Times on shared CI runners vary by several percent between runs and machines:
-read ratios and trends, not absolute values. The speed-up compares the times
-per evaluation, because the two frameworks may explore different trajectories:
-EasyLocal 3 first descent scans cyclically from the last move, while
-EasyLocal 4 restarts from the first; EasyLocal 3 steepest descent breaks ties
-at random; simulated annealing uses each framework's random numbers. Costs
-are means over the seeds.
+The speed-up compares the times per evaluation, because the two frameworks
+may explore different trajectories: EasyLocal 3 first descent scans
+cyclically from the last move, while EasyLocal 4 restarts from the first;
+EasyLocal 3 steepest descent breaks ties at random; simulated annealing uses
+each framework's random numbers. Costs are means over the seeds.
+"""
+
+DISCLAIMER = """\
+!!! warning "Measured on shared virtual machines"
+    The benchmarks run as a GitHub Actions workflow on a GitHub-hosted runner:
+    a virtual machine on shared cloud hardware, whose speed depends on the
+    load of the other machines on the same host, on the CPU model the runner
+    gets and on its frequency at the time. The same run repeated can differ by
+    several percent, and occasionally by more. EasyLocal 3 and EasyLocal 4 are
+    measured in the same job, alternating run by run, so their ratios are
+    more reliable than the absolute times; compare absolute times between
+    versions only with care, and read the results as indicative, not as
+    measurements on dedicated hardware.
 """
 
 NO_RESULTS = """
@@ -246,6 +257,79 @@ def infrastructure(directory: pathlib.Path) -> list[str]:
     return lines
 
 
+def read_key_values(path: pathlib.Path) -> dict[str, str]:
+    """The key,value rows of an infrastructure metadata.csv."""
+    if not path.exists():
+        return {}
+    return {row["key"]: row["value"] for row in read_rows(path)}
+
+
+def environment(label: str, metadata: dict, directory: pathlib.Path) -> list[str]:
+    """How a version was measured: the machine, the toolchain and the method,
+    from the metadata the runs recorded."""
+    machine = read_key_values(directory / "infrastructure" / "metadata.csv")
+    rows = [("Where", "GitHub Actions, GitHub-hosted runner"
+             + (f" (image {metadata['runner_image']})" if metadata.get("runner_image") else ""))]
+    if machine.get("os_description"):
+        system = machine["os_description"]
+        if machine.get("os_release"):
+            system += f", kernel {machine['os_release']}"
+        rows.append(("Operating system", system))
+    elif metadata.get("platform"):
+        rows.append(("Operating system", metadata["platform"]))
+    if machine.get("architecture"):
+        cpu = machine["architecture"]
+        if machine.get("hardware_model"):
+            cpu += f", {machine['hardware_model']}"
+        if machine.get("logical_cpus"):
+            cpu += f", {machine['logical_cpus']} logical CPUs"
+        rows.append(("Architecture", cpu))
+    if machine.get("compiler_version"):
+        compiler = machine["compiler_version"]
+        if machine.get("stdlib"):
+            compiler += f"; {machine['stdlib']}"
+        rows.append(("Compiler", compiler))
+    elif metadata.get("toolchain"):
+        rows.append(("Compiler", metadata["toolchain"]))
+    build = [machine.get(key) for key in ("cmake", "generator")]
+    build_type = machine.get("build_type", "Release")
+    standard = machine.get("cpp_standard", "23")
+    rows.append(("Build", ", ".join([b for b in build if b] + [build_type, f"C++{standard}"])))
+    versions = f"EasyLocal 4 {label}"
+    if machine.get("git_commit"):
+        versions += f" ({machine['git_commit'][:7]})"
+    if metadata.get("el3_release"):
+        versions += f"; EasyLocal 3 {metadata['el3_release']}"
+    elif metadata.get("framework") == "el4":
+        versions += "; EasyLocal 3 v3.3.1"
+    rows.append(("Versions", versions))
+    if metadata.get("commit"):
+        rows.append(("Benchmarks", f"easylocal-benchmarks {metadata['commit'][:7]}"))
+    rows.append(("Date", metadata["date"][:10]))
+
+    method = (
+        f"Each instance, algorithm and delta mode is run on every seed of the matrix, "
+        f"{metadata.get('repetitions', 3)} times per framework; a time is the median of "
+        "the repetitions, then the mean over the seeds. The two frameworks run in the "
+        "same job, alternating run by run, from the same initial solutions.")
+    if machine.get("trials"):
+        method += (
+            f" The infrastructure benchmarks report the median of {machine['trials']} "
+            "trials.")
+    return [
+        "",
+        "## How it was measured",
+        "",
+        "| | |",
+        "| --- | --- |",
+        *[f"| {name} | {value} |" for name, value in rows],
+        "",
+        method,
+        "",
+        DISCLAIMER.rstrip(),
+    ]
+
+
 def render(results: pathlib.Path) -> str:
     current = el3_vs_el4.matrix_key()
 
@@ -272,6 +356,7 @@ def render(results: pathlib.Path) -> str:
         return "\n".join(lines) + "\n" + NO_RESULTS
 
     label, (metadata, latest), el3 = versions[-1]
+    lines += environment(label, metadata, results / label)
     lines += ["", f"## EasyLocal 3 versus EasyLocal 4 {label}", ""]
     if el3 is None:
         lines += ["EasyLocal 3 was not measured with this version."]
