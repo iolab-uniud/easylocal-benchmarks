@@ -61,6 +61,8 @@ python3 "${repo_root}/scripts/machine-metadata.py" \
     --trials "${trials}" \
     --seed "${seed}"
 
+python3 "${repo_root}/scripts/cpu-time.py" start "${results_dir}/cpu-time.json"
+
 "${build_dir}/easylocal_neighborhood_traversal_benchmark" \
     "${target_work}" \
     "${trials}" \
@@ -74,6 +76,10 @@ python3 "${repo_root}/scripts/machine-metadata.py" \
     "${seed}" \
     > "${results_dir}/search.csv" \
     2> "${results_dir}/search.log"
+
+python3 "${repo_root}/scripts/cpu-time.py" stop "${results_dir}/cpu-time.json" \
+    "${results_dir}/metadata.csv"
+rm -f "${results_dir}/cpu-time.json"
 
 python3 "${repo_root}/scripts/summarize-neighborhood-benchmarks.py" \
     "${results_dir}" \

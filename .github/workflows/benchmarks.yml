@@ -138,10 +138,12 @@ jobs:
           out="build/results/$LABEL"
           python3 scripts/machine-metadata.py \
             --output "$out/el3-vs-el4-metadata.csv" --repo-root easylocal
+          python3 scripts/cpu-time.py start build/cpu-time.json
           python3 scripts/el3-vs-el4.py run \
             --el3 build/el3/el3_comparison --el4 build/el4/el4_comparison \
             --output "$out" --repetitions 3 \
             --toolchain "$TOOLCHAIN" --label "$LABEL"
+          python3 scripts/cpu-time.py stop build/cpu-time.json "$out/el3-vs-el4-metadata.csv"
           rm -rf "$out/instances"
 
       - name: Upload the results

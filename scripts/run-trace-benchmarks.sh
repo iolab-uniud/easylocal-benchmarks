@@ -41,6 +41,7 @@ python3 "${repo_root}/scripts/machine-metadata.py" \
     --repo-root "${easylocal_dir}" \
     --trials "${trials}"
 
+python3 "${repo_root}/scripts/cpu-time.py" start "${results_dir}/cpu-time.json"
 echo 'trial,mode,ns_per_evaluation,checksum' > "${results_dir}/trace.csv"
 echo 'trial,cost_model,ns_per_event,bytes_per_event,event_count' \
     > "${results_dir}/trace-cost-encoding.csv"
@@ -51,3 +52,6 @@ for trial in $(seq 1 "${trials}"); do
         2>> "${results_dir}/trace.log" \
         | tail -n +2 | sed "s/^/${trial},/" >> "${results_dir}/trace-cost-encoding.csv"
 done
+python3 "${repo_root}/scripts/cpu-time.py" stop "${results_dir}/cpu-time.json" \
+    "${results_dir}/trace-metadata.csv"
+rm -f "${results_dir}/cpu-time.json"

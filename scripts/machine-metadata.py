@@ -20,6 +20,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import urllib.request
 from typing import Optional
 
 
@@ -89,6 +90,84 @@ def hardware_model() -> str:
     return "unknown"
 
 
+# Instruction sets that change the code a compiler may emit or how fast it runs.
+ISA_FLAGS = ["sse4_2", "avx", "avx2", "fma", "bmi2", "avx512f", "avx512bw", "avx512vl",
+             "avx512_vnni", "sha_ni", "aes"]
+
+
+def lscpu_fields() -> dict[str, str]:
+    """The fields of lscpu (Linux), by their name without the colon."""
+    fields = {}
+    for line in command_output(["lscpu"]).splitlines():
+        if ":" in line:
+            key, value = line.split(":", 1)
+            fields[key.strip()] = value.strip()
+    return fields
+
+
+def virtual_machine() -> list[tuple[str, str]]:
+    """What the guest sees of its virtual machine: hypervisor, caches,
+    instruction sets, frequency and memory."""
+    rows = []
+    if platform.system() == "Linux":
+        cpu = lscpu_fields()
+        for key, field in (
+            ("hypervisor", "Hypervisor vendor"),
+            ("virtualization", "Virtualization type"),
+            ("sockets", "Socket(s)"),
+            ("threads_per_core", "Thread(s) per core"),
+            ("l1d_cache", "L1d cache"),
+            ("l1i_cache", "L1i cache"),
+            ("l2_cache", "L2 cache"),
+            ("l3_cache", "L3 cache"),
+            ("cpu_max_mhz", "CPU max MHz"),
+        ):
+            if cpu.get(field):
+                rows.append((key, cpu[field]))
+        mhz = cpu.get("CPU MHz")
+        if not mhz and Path("/proc/cpuinfo").exists():
+            for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+                if line.startswith("cpu MHz"):
+                    mhz = line.split(":", 1)[1].strip()
+                    break
+        if mhz:
+            rows.append(("cpu_mhz", mhz))
+        flags = set(cpu.get("Flags", "").split())
+        rows.append(("isa", " ".join(flag for flag in ISA_FLAGS if flag in flags)))
+        meminfo = Path("/proc/meminfo")
+        if meminfo.exists():
+            for line in meminfo.read_text(encoding="utf-8").splitlines():
+                if line.startswith("MemTotal:"):
+                    kib = int(line.split()[1])
+                    rows.append(("memory", f"{kib / 1024 / 1024:.1f} GiB"))
+                    break
+    elif platform.system() == "Darwin":
+        memory = command_output(["sysctl", "-n", "hw.memsize"])
+        if memory.isdigit():
+            rows.append(("memory", f"{int(memory) / 1024**3:.1f} GiB"))
+        for key, name in (("l1d_cache", "hw.l1dcachesize"), ("l2_cache", "hw.l2cachesize")):
+            value = command_output(["sysctl", "-n", name])
+            if value.isdigit():
+                rows.append((key, f"{int(value) // 1024} KiB"))
+    rows.append(("vm_size", azure_vm_size()))
+    return rows
+
+
+def azure_vm_size() -> str:
+    """The Azure size of the virtual machine, when its instance metadata
+    service answers (it may not on GitHub-hosted runners)."""
+    request = urllib.request.Request(
+        "http://169.254.169.254/metadata/instance/compute/vmSize"
+        "?api-version=2021-02-01&format=text",
+        headers={"Metadata": "true"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=2) as response:
+            return response.read().decode("utf-8").strip() or "unavailable"
+    except (OSError, ValueError):
+        return "unavailable"
+
+
 def git_metadata(repo_root: Path) -> tuple[str, str]:
     commit = command_output(["git", "-C", str(repo_root), "rev-parse", "HEAD"])
     status = command_output(["git", "-C", str(repo_root), "status", "--porcelain"])
@@ -127,6 +206,7 @@ def main() -> int:
         ("runner_arch", os.environ.get("RUNNER_ARCH", "local")),
         ("hardware_model", hardware_model()),
         ("logical_cpus", str(os.cpu_count() or "unknown")),
+        *virtual_machine(),
         ("compiler", compiler),
         ("compiler_version", compiler_version),
         ("compiler_target", compiler_target),

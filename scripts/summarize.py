@@ -300,6 +300,28 @@ def machine_rows(machine: dict[str, str]) -> dict[str, str]:
         if machine.get("logical_cpus"):
             cpu += f", {machine['logical_cpus']} logical CPUs"
         rows["Architecture"] = cpu
+    if machine.get("hypervisor"):
+        virtual = machine["hypervisor"]
+        if machine.get("virtualization"):
+            virtual += f" ({machine['virtualization']} virtualization)"
+        if machine.get("vm_size") not in (None, "", "unavailable"):
+            virtual += f", size {machine['vm_size']}"
+        rows["Virtual machine"] = virtual
+    caches = [f"{name} {machine[key]}" for name, key in (
+        ("L1d", "l1d_cache"), ("L1i", "l1i_cache"), ("L2", "l2_cache"), ("L3", "l3_cache"))
+        if machine.get(key)]
+    if caches:
+        rows["Caches"] = ", ".join(caches)
+    if machine.get("cpu_mhz"):
+        rows["Frequency"] = f"{float(machine['cpu_mhz']):.0f} MHz nominal"
+    if machine.get("memory"):
+        rows["Memory"] = machine["memory"]
+    if machine.get("isa"):
+        rows["Instruction sets"] = machine["isa"].replace(" ", ", ")
+    if machine.get("cpu_steal_percent") not in (None, "", "unavailable"):
+        rows["CPU steal during the run"] = (
+            f"{float(machine['cpu_steal_percent']):.1f}% (busy "
+            f"{float(machine['cpu_busy_percent']):.0f}%)")
     if machine.get("compiler_version"):
         compiler = machine["compiler_version"]
         if machine.get("stdlib"):
@@ -369,6 +391,12 @@ def environment(label: str, metadata: dict, directory: pathlib.Path) -> list[str
         trace = read_key_values(directory / "infrastructure" / "trace-metadata.csv")
         method += (
             f", the tracing ones of {trace['trials']}." if trace.get("trials") else ".")
+    if any(machine.get("cpu_steal_percent") not in (None, "", "unavailable")
+           for _, machine in parts):
+        method += (
+            " CPU steal is the share of the virtual machine's CPU time that the "
+            "hypervisor gave to other machines on the same host while the part ran: "
+            "the higher it is, the more the neighbours disturbed the measurement.")
     return lines + ["", method, "", DISCLAIMER.rstrip()]
 
 
