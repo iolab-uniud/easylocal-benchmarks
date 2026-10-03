@@ -1,5 +1,10 @@
 {
   "description": "EasyLocal 3 (easylocal-legacy v3.3.1) versus EasyLocal 4 on the EasyLocal example problems. Changing this file changes the matrix key: EasyLocal 4 results of different keys are not compared, and the EasyLocal 3 baseline is measured again.",
+  "problems": {
+    "tsp": "tour length; 2-opt moves with an O(1) delta",
+    "assignment": "1000 * total overload + load imbalance; job reassignment moves, no delta (each move evaluated on a copy of the solution)",
+    "exam": "1000 * student conflicts + 10 * consecutive exams + timeslot load; exam moves, deltas for conflicts and consecutive exams, none for the timeslot load"
+  },
   "instances": [
     {
       "name": "tsp-300",

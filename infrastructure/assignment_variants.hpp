@@ -11,9 +11,9 @@
 namespace easylocal::benchmark::neighborhood_traversal::assignment
 {
 
-using mwe::assignment::ReassignJobMove;
-using mwe::assignment::AssignmentSolution;
-using mwe::assignment::AssignmentSolutionManager;
+using ::assignment::ReassignJobMove;
+using ::assignment::AssignmentSolution;
+using ::assignment::AssignmentSolutionManager;
 
 class CoroutineNeighborhoodExplorer
 {

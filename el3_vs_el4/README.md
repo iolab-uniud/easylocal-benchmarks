@@ -25,9 +25,25 @@ where `seconds` times the search only.
 
 ## What is compared
 
-- **Problems.** TSP with 2-opt moves, Assignment with job reassignment, Exam
-  Timetabling with exam moves: the examples' cost components, delta
-  evaluations and neighborhood orders, ported one to one to EasyLocal 3.
+- **Problems.** The examples of the current EasyLocal 4 (`examples/tsp`,
+  `examples/assignment`, `examples/exam_timetabling`), used as they are by the
+  EasyLocal 4 driver, and their cost components, delta evaluations and
+  neighborhood orders ported one to one to EasyLocal 3:
+  - *TSP*: tour length with the closing edge; 2-opt moves, enumerated by the
+    first and then the second edge, with an O(1) delta.
+  - *Assignment*: total overload and load imbalance; job reassignment moves,
+    by job and then destination machine. No delta: the examples have no
+    whole-solution deltas (EasyLocal commit 21bc016), so every move is
+    evaluated on a copy of the solution with the move applied.
+  - *Exam Timetabling*: student conflicts, consecutive exams and timeslot
+    load; exam moves, by exam and then destination timeslot. Conflicts and
+    consecutive exams have deltas that scan the conflicts; the timeslot load
+    has none and is evaluated on a copy of the solution.
+
+  `matrix.json` records these definitions under `problems`: they are part of
+  the matrix key, so results measured before they changed (the assignment
+  capacity delta and the exam timeslot-load delta, both dropped from the
+  examples) are not compared with the current ones.
 - **Costs.** The same function in both: Assignment is `1000 · total overload +
   load imbalance` (EasyLocal 3 weighs hard costs by `HARD_WEIGHT = 1000`), Exam
   Timetabling `1000 · conflicts + 10 · consecutive exams + timeslot load`.
@@ -40,8 +56,10 @@ where `seconds` times the search only.
   move, EL4 `FirstImprovement` restarts from the first one; EL3
   `SteepestDescent` breaks ties at random, EL4 `BestImprovement` keeps the
   first best move; simulated annealing uses each framework's random numbers.
-  The speed-up is therefore measured per evaluation. See `el3/README.md` for
-  the details.
+  The speed-up is therefore measured per evaluation. For a component without
+  a delta EasyLocal 3 computes the cost of the copy and of the current
+  solution at every move, while EasyLocal 4 reuses the cached value of the
+  current solution. See `el3/README.md` for the details.
 
 ## Running it
 

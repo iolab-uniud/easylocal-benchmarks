@@ -12,9 +12,9 @@
 namespace easylocal::benchmark::neighborhood_traversal::tsp
 {
 
-using mwe::tsp::Tour;
-using mwe::tsp::TspSolutionManager;
-using mwe::tsp::TwoOptMove;
+using ::tsp::Tour;
+using ::tsp::TspSolutionManager;
+using ::tsp::TwoOptMove;
 
 [[nodiscard]]
 constexpr auto valid_edge_pair(

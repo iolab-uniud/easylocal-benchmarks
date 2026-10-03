@@ -2,7 +2,7 @@
 #include "tsp_variants.hpp"
 
 #include <easylocal/runners/best_improvement.hpp>
-#include "assignment/capacity_delta.hpp"
+#include "assignment_capacity_delta.hpp"
 #include <easylocal/runners/first_improvement.hpp>
 #include "tsp/tour_length_component.hpp"
 #include "tsp/tour_length_delta.hpp"
@@ -25,8 +25,6 @@
 #include <vector>
 
 namespace bench = easylocal::benchmark::neighborhood_traversal;
-namespace assignment = easylocal::mwe::assignment;
-namespace tsp = easylocal::mwe::tsp;
 namespace runners = easylocal::runners;
 
 namespace allocation_probe
@@ -285,6 +283,29 @@ private:
     runners::BestImprovementParameters parameters_;
 };
 
+// A stock EasyLocal algorithm, given by its parameters: a Runner holds the
+// parameters of a parameterized algorithm (make_runner), while the raw-cursor
+// oracles above are passed as algorithm objects.
+template<class Algorithm>
+struct stock
+{
+    typename Algorithm::parameters_type parameters;
+};
+
+template<class Algorithm>
+[[nodiscard]]
+auto make_benchmark_runner(stock<Algorithm> algorithm)
+{
+    return easylocal::make_runner<Algorithm>(algorithm.parameters);
+}
+
+template<class Algorithm>
+[[nodiscard]]
+auto make_benchmark_runner(Algorithm algorithm)
+{
+    return easylocal::Runner{std::move(algorithm)};
+}
+
 [[nodiscard]]
 auto termination_name(const easylocal::termination_reason termination)
     -> std::string_view
@@ -301,6 +322,8 @@ auto termination_name(const easylocal::termination_reason termination)
         return "cancelled";
     case easylocal::termination_reason::target_reached:
         return "target";
+    case easylocal::termination_reason::idle_limit_reached:
+        return "idle";
     }
 
     return "unknown";
@@ -333,7 +356,7 @@ auto run_once(
     const ManagerRecipe& manager_recipe,
     const NeighborhoodRecipe& neighborhood_recipe)
 {
-    auto runner = easylocal::Runner{std::move(algorithm)}
+    auto runner = make_benchmark_runner(std::move(algorithm))
                 | manager_recipe
                 | neighborhood_recipe;
     auto bound_runner = runner.bind(instance);
@@ -382,7 +405,7 @@ void benchmark_variant(
     const std::size_t target_evaluations,
     const std::size_t trials)
 {
-    auto runner = easylocal::Runner{std::move(algorithm)}
+    auto runner = make_benchmark_runner(std::move(algorithm))
                 | manager_recipe
                 | neighborhood_recipe;
     auto bound_runner = runner.bind(instance);
@@ -507,11 +530,11 @@ void benchmark_search_case(
     check_algorithm(
         "first-improvement",
         RawCursorFirstImprovement{first_parameters},
-        runners::FirstImprovement{first_parameters});
+        stock<runners::FirstImprovement>{first_parameters});
     check_algorithm(
         "best-improvement",
         RawCursorBestImprovement{best_parameters},
-        runners::BestImprovement{best_parameters});
+        stock<runners::BestImprovement>{best_parameters});
 
     const auto run_algorithm = [&]<class RawAlgorithm, class RangeAlgorithm>(
         const std::string_view algorithm_name,
@@ -558,11 +581,11 @@ void benchmark_search_case(
     run_algorithm(
         "first-improvement",
         RawCursorFirstImprovement{first_parameters},
-        runners::FirstImprovement{first_parameters});
+        stock<runners::FirstImprovement>{first_parameters});
     run_algorithm(
         "best-improvement",
         RawCursorBestImprovement{best_parameters},
-        runners::BestImprovement{best_parameters});
+        stock<runners::BestImprovement>{best_parameters});
 }
 
 struct AssignmentBenchmarkCase
@@ -672,13 +695,13 @@ void benchmark_assignment(
         easylocal::neighborhood<assignment::ReassignJobNeighborhoodExplorer>()
         | easylocal::delta<
               assignment::CapacityCostComponent,
-              assignment::ReassignCapacityDeltaEvaluator>();
+              benchmarks::assignment::ReassignCapacityDeltaEvaluator>();
     const auto coroutine_recipe =
         easylocal::neighborhood<
             bench::assignment::CoroutineNeighborhoodExplorer>()
         | easylocal::delta<
               assignment::CapacityCostComponent,
-              assignment::ReassignCapacityDeltaEvaluator>();
+              benchmarks::assignment::ReassignCapacityDeltaEvaluator>();
 
     const auto same_solution = [](const assignment::AssignmentSolution& lhs,
                                   const assignment::AssignmentSolution& rhs) {

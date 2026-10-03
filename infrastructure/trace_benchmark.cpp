@@ -1,5 +1,5 @@
-#include "assignment/capacity_delta.hpp"
 #include "assignment/cost_components.hpp"
+#include "assignment_capacity_delta.hpp"
 #include "assignment/neighborhood_explorer.hpp"
 #include "assignment/solution_manager.hpp"
 
@@ -23,8 +23,6 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-namespace assignment = easylocal::mwe::assignment;
 
 namespace
 {
@@ -168,8 +166,8 @@ int main()
         instance.demand[job] = static_cast<assignment::quantity_type>(1 + (job * 17) % 9);
     }
 
-    auto runner = easylocal::Runner{
-        easylocal::runners::FirstImprovement{{.max_evaluations = 500'000}}}
+    auto runner = easylocal::make_runner<easylocal::runners::FirstImprovement>(
+                      {.max_evaluations = 500'000})
         | (easylocal::solution_manager<assignment::AssignmentSolutionManager>()
            | easylocal::cost::apply(
                  [](const assignment::CapacityValue& capacity) {
@@ -179,7 +177,7 @@ int main()
         | (easylocal::neighborhood<assignment::ReassignJobNeighborhoodExplorer>()
            | easylocal::delta<
                  assignment::CapacityCostComponent,
-                 assignment::ReassignCapacityDeltaEvaluator>());
+                 benchmarks::assignment::ReassignCapacityDeltaEvaluator>());
     auto bound = runner.bind(instance);
 
     const auto reference = bound.run(initial);

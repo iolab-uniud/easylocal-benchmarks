@@ -17,8 +17,6 @@
 #include <vector>
 
 namespace bench = easylocal::benchmark::neighborhood_traversal;
-namespace assignment = easylocal::mwe::assignment;
-namespace tsp = easylocal::mwe::tsp;
 
 namespace
 {

@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.25)
 
 # EasyLocal infrastructure benchmarks: neighborhood traversal, runner-level
 # search and tracing overhead, compiled from an EasyLocal checkout (header-only
-# Core and the examples' models).
+# Core and the examples' models, plus the deltas of ../common that the examples
+# do not have).
 project(easylocal_infrastructure_benchmarks LANGUAGES CXX)
 
 set(EASYLOCAL_SOURCE_DIR "" CACHE PATH "Path to an EasyLocal 4 checkout")
@@ -23,6 +24,7 @@ function(easylocal_benchmark target source)
         PRIVATE
             "${EASYLOCAL_SOURCE_DIR}/include"
             "${EASYLOCAL_SOURCE_DIR}/examples"
+            "${CMAKE_CURRENT_SOURCE_DIR}/../common"
     )
     target_link_libraries(${target} PRIVATE Threads::Threads)
     if(MSVC)

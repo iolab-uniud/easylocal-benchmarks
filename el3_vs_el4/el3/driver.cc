@@ -159,10 +159,9 @@ void RunAssignment(const Options& o)
     sm.AddCostComponent(overload);
     sm.AddCostComponent(imbalance);
     assignment::ReassignJobNeighborhoodExplorer ne(in, sm);
-    assignment::ReassignOverloadDelta overload_delta(in, overload);
-    ne.AddDeltaCostComponent(overload_delta);
-    // No delta for the load imbalance: EasyLocal 3 wraps the full cost
-    // component in a DeltaCostComponentAdapter (move applied to a copy).
+    // No deltas, as in the EasyLocal 4 example: EasyLocal 3 wraps each full
+    // cost component in a DeltaCostComponentAdapter (move applied to a copy).
+    ne.AddCostComponent(overload);
     ne.AddCostComponent(imbalance);
     Run(o, in, initial, sm, ne);
 }
@@ -182,10 +181,10 @@ void RunExam(const Options& o)
     exam::MoveExamNeighborhoodExplorer ne(in, sm);
     exam::StudentConflictsDelta conflicts_delta(in, conflicts);
     exam::ConsecutiveExamsDelta consecutive_delta(in, consecutive);
-    exam::TimeslotLoadDelta load_delta(in, load);
     ne.AddDeltaCostComponent(conflicts_delta);
     ne.AddDeltaCostComponent(consecutive_delta);
-    ne.AddDeltaCostComponent(load_delta);
+    // No delta for the timeslot load, as in the EasyLocal 4 example.
+    ne.AddCostComponent(load);
     Run(o, in, initial, sm, ne);
 }
 

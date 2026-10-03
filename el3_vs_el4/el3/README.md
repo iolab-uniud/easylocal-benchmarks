@@ -1,7 +1,7 @@
 # EasyLocal 3 side of the EL3-versus-EL4 benchmark
 
 A standalone CMake project that ports the three EasyLocal 4 examples used by
-`../el4/driver.cpp` (TSP 2-opt, assignment reassign-job, exam-timetabling
+`../el4/driver.cpp`, in their current form, (TSP 2-opt, assignment reassign-job, exam-timetabling
 move-exam) to EasyLocal 3 (release v3.3.1) and runs them with the same command
 line and the same output.
 
@@ -47,16 +47,16 @@ solution.
   load_imbalance)`; costs are `long`. Exam: three soft components with weights
   1000, 10 and 1, `long` costs.
 - Deltas are ported line by line, with the same complexity: O(1) 2-opt delta;
-  the overload delta recomputes both machine loads in O(jobs); the
-  student-conflict and consecutive-exam deltas scan the conflicts; the
-  timeslot-load delta recounts the loads in O(exams).
-- The load imbalance has no delta, as in EasyLocal 4. It is attached with
-  `NeighborhoodExplorer::AddCostComponent`, which wraps it in a
+  the student-conflict and consecutive-exam deltas scan the conflicts.
+- The components without a delta in the EasyLocal 4 examples have none here
+  either: the total overload and the load imbalance (assignment) and the
+  timeslot load (exam). They are attached with
+  `NeighborhoodExplorer::AddCostComponent`, which wraps them in a
   `DeltaCostComponentAdapter`; `DeltaCostFunctionComponents` then copies the
-  solution, applies the move to the copy and computes
-  `ComputeCost(copy) - ComputeCost(current)`. EasyLocal 4 also evaluates a
-  copy, but reuses the cached value of the current solution, so EasyLocal 3
-  evaluates the component twice per move instead of once.
+  solution once per move, applies the move to the copy and computes
+  `ComputeCost(copy) - ComputeCost(current)` for each of them. EasyLocal 4
+  also evaluates a copy, but reuses the cached value of the current solution,
+  so EasyLocal 3 evaluates these components twice per move instead of once.
 - `FirstMove`/`NextMove` enumerate in the order of the EasyLocal 4
   `first_move`/`next_move`; `RandomMove` draws uniformly as the EasyLocal 4
   `random_move`, with `Random::Uniform`: two edges redrawn until they form a

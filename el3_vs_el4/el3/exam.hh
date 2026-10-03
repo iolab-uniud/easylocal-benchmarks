@@ -1,7 +1,9 @@
 // EasyLocal 3 port of the EasyLocal 4 exam-timetabling example
 // (examples/exam_timetabling): move one exam to another timeslot; three soft
 // components (student conflicts x1000, consecutive exams x10, timeslot load
-// x1), each with the delta of cost_components.hpp / cost_deltas.hpp.
+// x1). Conflicts and consecutive exams have the deltas of cost_components.hpp
+// and cost_deltas.hpp; the timeslot load has none, as in the example, and is
+// evaluated on a copy of the solution with the move applied.
 #pragma once
 
 #include "helpers/solutionmanager.hh"
@@ -31,7 +33,8 @@ struct Conflict
     long students;
 };
 
-// Same file format as examples/exam_timetabling/instance_io.hpp: exams,
+// Same file format as ExamTimetablingInstance::read
+// (examples/exam_timetabling/instance.hpp): exams,
 // timeslots, conflicts, then one "first second students" line per conflict.
 class Input
 {
@@ -234,28 +237,6 @@ public:
                 change += c.students;
         }
         return change;
-    }
-};
-
-// Keeps the O(exams) recount of the timeslot loads, as in EasyLocal 4.
-class TimeslotLoadDelta : public DeltaCostComponent<Input, Timetable, MoveExam, CFtype>
-{
-public:
-    TimeslotLoadDelta(const Input& in, TimeslotLoad& cc)
-        : DeltaCostComponent<Input, Timetable, MoveExam, CFtype>(in, cc, "TimeslotLoadDelta") {}
-
-    CFtype ComputeDeltaCost(const Timetable& st, const MoveExam& mv) const override
-    {
-        const auto source = st.timeslot_by_exam[mv.exam];
-        std::vector<CFtype> load(in.timeslot_count, 0);
-        for (const auto t : st.timeslot_by_exam)
-            ++load[t];
-        const auto source_load = load[source];
-        const auto destination_load = load[mv.destination];
-        const auto before = source_load * source_load + destination_load * destination_load;
-        const auto after = (source_load - 1) * (source_load - 1) +
-                           (destination_load + 1) * (destination_load + 1);
-        return after - before;
     }
 };
 

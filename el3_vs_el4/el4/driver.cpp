@@ -7,9 +7,11 @@
 //
 // Prints one line, initial_cost,final_cost,evaluations,iterations,seconds;
 // seconds time the search only, not reading the files or building services.
-// The models are the examples' own; the costs are the ones of the EasyLocal 3
+// The models are the examples' own (EASYLOCAL_SOURCE_DIR/examples), with
+// their delta evaluators; the costs are the weighted sums of the EasyLocal 3
 // ports, so that both frameworks optimize the same function.
 
+#include <easylocal/app/io.hpp>
 #include <easylocal/helpers/recipes.hpp>
 #include <easylocal/runners/best_improvement.hpp>
 #include <easylocal/runners/first_improvement.hpp>
@@ -18,15 +20,12 @@
 
 // The examples of the EasyLocal checkout (EASYLOCAL_SOURCE_DIR), included by
 // path because the three use the same file names.
-#include "assignment/capacity_delta.hpp"
 #include "assignment/cost_components.hpp"
 #include "assignment/instance_io.hpp"
 #include "assignment/neighborhood_explorer.hpp"
 #include "exam_timetabling/cost_components.hpp"
 #include "exam_timetabling/cost_deltas.hpp"
-#include "exam_timetabling/instance_io.hpp"
 #include "exam_timetabling/neighborhood_explorer.hpp"
-#include "tsp/instance_io.hpp"
 #include "tsp/neighborhood_explorer.hpp"
 #include "tsp/tour_length_delta.hpp"
 
@@ -46,9 +45,7 @@ namespace
 {
 
 namespace el = easylocal;
-namespace assignment = easylocal::mwe::assignment;
-namespace exam = easylocal::mwe::exam_timetabling;
-namespace tsp = easylocal::mwe::tsp;
+namespace exam = exam_timetabling;
 
 struct Options
 {
@@ -135,17 +132,13 @@ void run(
 
     if (options.algorithm == "sd")
     {
-        auto runner = el::make_runner<el::runners::BestImprovement>(
-                          el::runners::BestImprovementParameters{})
-                    | sm | nhe;
+        auto runner = el::make_runner<el::runners::BestImprovement>() | sm | nhe;
         auto bound = runner.bind(input);
         timed(bound);
     }
     else if (options.algorithm == "fd")
     {
-        auto runner = el::make_runner<el::runners::FirstImprovement>(
-                          el::runners::FirstImprovementParameters{})
-                    | sm | nhe;
+        auto runner = el::make_runner<el::runners::FirstImprovement>() | sm | nhe;
         auto bound = runner.bind(input);
         timed(bound);
     }
@@ -153,7 +146,7 @@ void run(
     {
         using Classic = el::runners::temperature::Classic;
         auto runner = el::make_runner<el::runners::SimulatedAnnealing<Classic>>(
-                          Classic{options.annealing})
+                          {.temperature = options.annealing})
                     | sm | nhe;
         auto bound = runner.bind(input);
         std::mt19937_64 rng{options.seed};
@@ -177,7 +170,7 @@ struct TotalOverload
 
 void run_tsp(const Options& options)
 {
-    const auto input = tsp::load_instance(options.instance);
+    const auto input = el::load_input<tsp::TspInstance>(options.instance);
     tsp::Tour initial;
     initial.tour = read_values(options.initial);
     run(options, input, initial,
@@ -189,10 +182,11 @@ void run_tsp(const Options& options)
                         tsp::TwoOptTourLengthDeltaEvaluator>());
 }
 
-// EasyLocal 3 adds its hard costs with weight HARD_WEIGHT = 1000.
+// EasyLocal 3 adds its hard costs with weight HARD_WEIGHT = 1000. The example
+// binds no delta evaluator: every move is evaluated on a candidate solution.
 void run_assignment(const Options& options)
 {
-    const auto input = assignment::load_instance(options.instance);
+    const auto input = el::load_input<assignment::AssignmentInstance>(options.instance);
     assignment::AssignmentSolution initial;
     initial.assignment = read_values(options.initial);
     run(options, input, initial,
@@ -202,14 +196,14 @@ void run_assignment(const Options& options)
                                   el::component<assignment::CapacityCostComponent>())
                       * 1000,
                   el::component<assignment::LoadImbalanceCostComponent>()),
-        el::neighborhood<assignment::ReassignJobNeighborhoodExplorer>()
-            | el::delta<assignment::CapacityCostComponent,
-                        assignment::ReassignCapacityDeltaEvaluator>());
+        el::neighborhood<assignment::ReassignJobNeighborhoodExplorer>());
 }
 
+// The timeslot load has no delta evaluator in the example: it is evaluated on
+// a candidate solution.
 void run_exam(const Options& options)
 {
-    const auto input = exam::load_instance(options.instance);
+    const auto input = el::load_input<exam::ExamTimetablingInstance>(options.instance);
     exam::ExamTimetable initial;
     initial.timeslot_by_exam = read_values(options.initial);
     run(options, input, initial,
@@ -221,9 +215,7 @@ void run_exam(const Options& options)
         el::neighborhood<exam::MoveExamNeighborhoodExplorer>()
             | el::delta<exam::StudentConflictComponent>()
             | el::delta<exam::ConsecutiveExamComponent,
-                        exam::ConsecutiveExamDeltaEvaluator>()
-            | el::delta<exam::TimeslotLoadComponent,
-                        exam::TimeslotLoadDeltaEvaluator>());
+                        exam::ConsecutiveExamDeltaEvaluator>());
 }
 
 } // namespace
