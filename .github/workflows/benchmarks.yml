@@ -260,10 +260,11 @@ jobs:
       - name: Commit the results
         if: ${{ env.PUBLISH == 'true' && !env.ACT }}
         run: |
+          # The identity also for the rebase, when main moved meanwhile.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add results
-          git -c user.name="github-actions[bot]" \
-              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-              commit -q -m "results: EasyLocal $LABEL ($PARTS)"
+          git commit -q -m "results: EasyLocal $LABEL ($PARTS)"
           git pull -q --rebase
           git push -q
 
