@@ -212,7 +212,9 @@ def render(results: pathlib.Path) -> str:
         el4 = measured(directory / "el4")
         if el4 is not None:
             versions.append((directory.name, el4, measured(directory / "el3")))
-    versions.sort(key=lambda v: version_key(v[0]))
+    # Releases by version number; labels that are not versions (main-<commit>)
+    # all rank as 0, so among them the latest measurement wins.
+    versions.sort(key=lambda v: (version_key(v[0]), v[1][0]["date"]))
 
     lines = [INTRO.rstrip()]
     if not versions:
