@@ -38,7 +38,8 @@ macOS AppleClang and GCC) for diagnosis; their results are artifacts only.
 
 Write the problem in both frameworks with the same cost function, delta
 evaluations and neighborhood order, give both drivers the command line of
-`el3_vs_el4/README.md`, and add its instances to the matrix.
+`el3_vs_el4/README.md` (delta modes included), and add its instances and
+delta modes to the matrix.
 
 ## License
 

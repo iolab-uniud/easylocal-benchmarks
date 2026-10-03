@@ -1,7 +1,9 @@
 // EasyLocal 3 port of the EasyLocal 4 assignment example (examples/assignment):
 // reassign one job to another machine; hard cost = total overload, soft cost =
-// load imbalance. As in the example, neither has a delta: both are evaluated on
-// a copy of the solution with the move applied.
+// load imbalance. As in the example, neither has a delta in delta mode none
+// (the default): both are evaluated on a copy of the solution with the move
+// applied. The deltas of delta modes mixed and all are the ones of
+// common/assignment_deltas.hpp.
 #pragma once
 
 #include "helpers/solutionmanager.hh"
@@ -91,6 +93,15 @@ inline std::ostream& operator<<(std::ostream& os, const ReassignJob& mv)
     return os << "job " << mv.job << " -> machine " << mv.destination;
 }
 
+inline quantity MachineLoad(const Input& in, const Assignment& st, std::size_t machine)
+{
+    quantity load = 0;
+    for (std::size_t job = 0; job < st.assignment.size(); ++job)
+        if (st.assignment[job] == machine)
+            load += in.demand[job];
+    return load;
+}
+
 inline quantity Overload(quantity load, quantity capacity)
 {
     return std::max(quantity{0}, load - capacity);
@@ -156,6 +167,60 @@ public:
     }
 
     void PrintViolations(const Assignment&, std::ostream&) const override {}
+};
+
+// Port of ReassignCapacityDeltaEvaluator (common/assignment_deltas.hpp),
+// including its two O(jobs) load recomputations: delta modes mixed and all.
+class ReassignOverloadDelta
+    : public DeltaCostComponent<Input, Assignment, ReassignJob, CFtype>
+{
+public:
+    ReassignOverloadDelta(const Input& in, TotalOverload& cc)
+        : DeltaCostComponent<Input, Assignment, ReassignJob, CFtype>(in, cc, "ReassignOverloadDelta") {}
+
+    CFtype ComputeDeltaCost(const Assignment& st, const ReassignJob& mv) const override
+    {
+        const auto source = st.assignment[mv.job];
+        const auto demand = in.demand[mv.job];
+        const auto source_load = MachineLoad(in, st, source);
+        const auto destination_load = MachineLoad(in, st, mv.destination);
+
+        const auto source_before = Overload(source_load, in.capacity[source]);
+        const auto destination_before = Overload(destination_load, in.capacity[mv.destination]);
+        const auto source_after = Overload(source_load - demand, in.capacity[source]);
+        const auto destination_after = Overload(destination_load + demand, in.capacity[mv.destination]);
+
+        return source_after + destination_after - source_before - destination_before;
+    }
+};
+
+// Port of ReassignLoadImbalanceDeltaEvaluator (common/assignment_deltas.hpp):
+// all the loads in O(jobs), the imbalance after the move in O(machines).
+// Delta mode all.
+class ReassignLoadImbalanceDelta
+    : public DeltaCostComponent<Input, Assignment, ReassignJob, CFtype>
+{
+public:
+    ReassignLoadImbalanceDelta(const Input& in, LoadImbalance& cc)
+        : DeltaCostComponent<Input, Assignment, ReassignJob, CFtype>(in, cc, "ReassignLoadImbalanceDelta") {}
+
+    CFtype ComputeDeltaCost(const Assignment& st, const ReassignJob& mv) const override
+    {
+        std::vector<quantity> load(in.capacity.size(), 0);
+        for (std::size_t job = 0; job < st.assignment.size(); ++job)
+            load[st.assignment[job]] += in.demand[job];
+
+        const auto [minimum_before, maximum_before] = std::minmax_element(load.begin(), load.end());
+        const auto before = *maximum_before - *minimum_before;
+
+        const auto demand = in.demand[mv.job];
+        load[st.assignment[mv.job]] -= demand;
+        load[mv.destination] += demand;
+        const auto [minimum_after, maximum_after] = std::minmax_element(load.begin(), load.end());
+        const auto after = *maximum_after - *minimum_after;
+
+        return after - before;
+    }
 };
 
 class ReassignJobNeighborhoodExplorer

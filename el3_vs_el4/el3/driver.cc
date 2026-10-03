@@ -3,12 +3,17 @@
 //
 //   el3_comparison --problem tsp|assignment|exam --instance FILE
 //       --initial FILE --algorithm sd|fd|sa --seed N
+//       [--delta-mode all|mixed|none]
 //       [--sa-start-temperature T --sa-min-temperature T
 //        --sa-cooling-rate R --sa-samples N]
 //
 // Prints one line, initial_cost,final_cost,evaluations,iterations,seconds;
 // seconds time Go() only. An optional --output FILE (not in the EL4 driver)
-// writes the final solution, for checking it.
+// writes the final solution, for checking it. --delta-mode is as in the
+// EasyLocal 4 driver: the components without a delta are attached with
+// AddCostComponent, so EasyLocal 3 evaluates them on a copy of the solution
+// with the move applied; without it, each problem runs the configuration of
+// the EasyLocal 4 example (all for TSP, none for assignment, mixed for exam).
 
 #include "assignment.hh"
 #include "exam.hh"
@@ -38,6 +43,7 @@ using namespace EasyLocal::Core;
 struct Options
 {
     std::string problem, instance, initial, algorithm, output;
+    std::string delta_mode; // empty: the EasyLocal 4 example's configuration
     unsigned int seed = 1;
     double start_temperature = 0.0, min_temperature = 0.0, cooling_rate = 0.0;
     unsigned int samples = 0;
@@ -62,6 +68,8 @@ Options Parse(int argc, char* argv[])
     o.seed = static_cast<unsigned int>(std::stoul(required("--seed")));
     if (values.count("--output"))
         o.output = values["--output"];
+    if (values.count("--delta-mode"))
+        o.delta_mode = values["--delta-mode"];
     if (o.algorithm == "sa")
     {
         o.start_temperature = std::stod(required("--sa-start-temperature"));
@@ -134,6 +142,12 @@ void Run(const Options& o, const Input& in, const Solution& initial,
         throw std::runtime_error("unknown algorithm " + o.algorithm);
 }
 
+[[noreturn]] void UnsupportedMode(const Options& o)
+{
+    throw std::runtime_error("unsupported --delta-mode " + o.delta_mode + " for " + o.problem);
+}
+
+// all (the default): the 2-opt delta; none: no delta.
 void RunTsp(const Options& o)
 {
     const tsp::Input in(o.instance);
@@ -144,10 +158,17 @@ void RunTsp(const Options& o)
     sm.AddCostComponent(length);
     tsp::TwoOptNeighborhoodExplorer ne(in, sm);
     tsp::TwoOptTourLengthDelta delta(in, length);
-    ne.AddDeltaCostComponent(delta);
+    if (o.delta_mode.empty() || o.delta_mode == "all")
+        ne.AddDeltaCostComponent(delta);
+    else if (o.delta_mode == "none")
+        ne.AddCostComponent(length);
+    else
+        UnsupportedMode(o);
     Run(o, in, initial, sm, ne);
 }
 
+// none (the default): no delta; mixed: the overload delta only; all: the
+// overload and the load-imbalance deltas.
 void RunAssignment(const Options& o)
 {
     const assignment::Input in(o.instance);
@@ -159,13 +180,30 @@ void RunAssignment(const Options& o)
     sm.AddCostComponent(overload);
     sm.AddCostComponent(imbalance);
     assignment::ReassignJobNeighborhoodExplorer ne(in, sm);
-    // No deltas, as in the EasyLocal 4 example: EasyLocal 3 wraps each full
-    // cost component in a DeltaCostComponentAdapter (move applied to a copy).
-    ne.AddCostComponent(overload);
-    ne.AddCostComponent(imbalance);
+    assignment::ReassignOverloadDelta overload_delta(in, overload);
+    assignment::ReassignLoadImbalanceDelta imbalance_delta(in, imbalance);
+    if (o.delta_mode.empty() || o.delta_mode == "none")
+    {
+        ne.AddCostComponent(overload);
+        ne.AddCostComponent(imbalance);
+    }
+    else if (o.delta_mode == "mixed")
+    {
+        ne.AddDeltaCostComponent(overload_delta);
+        ne.AddCostComponent(imbalance);
+    }
+    else if (o.delta_mode == "all")
+    {
+        ne.AddDeltaCostComponent(overload_delta);
+        ne.AddDeltaCostComponent(imbalance_delta);
+    }
+    else
+        UnsupportedMode(o);
     Run(o, in, initial, sm, ne);
 }
 
+// mixed (the default): conflict and consecutive-exam deltas, none for the
+// timeslot load; all: the timeslot-load delta too; none: no delta.
 void RunExam(const Options& o)
 {
     const exam::Input in(o.instance);
@@ -181,10 +219,27 @@ void RunExam(const Options& o)
     exam::MoveExamNeighborhoodExplorer ne(in, sm);
     exam::StudentConflictsDelta conflicts_delta(in, conflicts);
     exam::ConsecutiveExamsDelta consecutive_delta(in, consecutive);
-    ne.AddDeltaCostComponent(conflicts_delta);
-    ne.AddDeltaCostComponent(consecutive_delta);
-    // No delta for the timeslot load, as in the EasyLocal 4 example.
-    ne.AddCostComponent(load);
+    exam::TimeslotLoadDelta load_delta(in, load);
+    if (o.delta_mode.empty() || o.delta_mode == "mixed")
+    {
+        ne.AddDeltaCostComponent(conflicts_delta);
+        ne.AddDeltaCostComponent(consecutive_delta);
+        ne.AddCostComponent(load);
+    }
+    else if (o.delta_mode == "all")
+    {
+        ne.AddDeltaCostComponent(conflicts_delta);
+        ne.AddDeltaCostComponent(consecutive_delta);
+        ne.AddDeltaCostComponent(load_delta);
+    }
+    else if (o.delta_mode == "none")
+    {
+        ne.AddCostComponent(conflicts);
+        ne.AddCostComponent(consecutive);
+        ne.AddCostComponent(load);
+    }
+    else
+        UnsupportedMode(o);
     Run(o, in, initial, sm, ne);
 }
 

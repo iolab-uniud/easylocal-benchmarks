@@ -7,21 +7,24 @@ EasyLocal documentation.
 
 | File | Role |
 | --- | --- |
-| `matrix.json` | the benchmark matrix: instances, algorithms, annealing schedules, seeds |
+| `matrix.json` | the benchmark matrix: problems, instances, algorithms, delta modes, annealing schedules, seeds |
 | `generate.py` | writes the instances and the initial solutions of the matrix |
-| `el4/` | EasyLocal 4 driver (`el4_comparison`), built on the examples of an EasyLocal checkout |
+| `el4/` | EasyLocal 4 driver (`el4_comparison`), built on the examples of an EasyLocal checkout and on `../common/` |
 | `el3/` | EasyLocal 3 driver (`el3_comparison`), built against `easylocal-legacy` v3.3.1 |
 
 Both drivers take the same command line,
 
 ```text
 --problem tsp|assignment|exam --instance FILE --initial FILE
---algorithm sd|fd|sa --seed N
+--algorithm sd|fd|sa --seed N [--delta-mode all|mixed|none]
 [--sa-start-temperature T --sa-min-temperature T --sa-cooling-rate R --sa-samples N]
 ```
 
 and print one line, `initial_cost,final_cost,evaluations,iterations,seconds`,
-where `seconds` times the search only.
+where `seconds` times the search only. Without `--delta-mode` each problem
+runs the configuration of its EasyLocal 4 example (see below).
+`scripts/el3-vs-el4.py` always passes it and writes it in the `delta_mode`
+column of `results.csv`.
 
 ## What is compared
 
@@ -30,20 +33,34 @@ where `seconds` times the search only.
   EasyLocal 4 driver, and their cost components, delta evaluations and
   neighborhood orders ported one to one to EasyLocal 3:
   - *TSP*: tour length with the closing edge; 2-opt moves, enumerated by the
-    first and then the second edge, with an O(1) delta.
+    first and then the second edge.
   - *Assignment*: total overload and load imbalance; job reassignment moves,
-    by job and then destination machine. No delta: the examples have no
-    whole-solution deltas (EasyLocal commit 21bc016), so every move is
-    evaluated on a copy of the solution with the move applied.
+    by job and then destination machine.
   - *Exam Timetabling*: student conflicts, consecutive exams and timeslot
-    load; exam moves, by exam and then destination timeslot. Conflicts and
-    consecutive exams have deltas that scan the conflicts; the timeslot load
-    has none and is evaluated on a copy of the solution.
+    load; exam moves, by exam and then destination timeslot.
+- **Delta modes.** Each problem is measured with delta evaluations for all
+  its cost components (`all`), for some of them (`mixed`) and for none
+  (`none`, every move applied to a copy of the solution and its cost
+  computed from scratch), configured alike in the two frameworks:
 
-  `matrix.json` records these definitions under `problems`: they are part of
-  the matrix key, so results measured before they changed (the assignment
-  capacity delta and the exam timeslot-load delta, both dropped from the
-  examples) are not compared with the current ones.
+  | Problem | `all` | `mixed` | `none` |
+  | --- | --- | --- | --- |
+  | TSP | O(1) 2-opt delta (example) | – | no delta |
+  | Assignment | overload and load-imbalance deltas, O(jobs) each | overload delta only | no delta (example) |
+  | Exam Timetabling | conflict and consecutive-exam deltas (scan the conflicts), timeslot-load delta (recounts the loads, O(exams)) | no timeslot-load delta (example) | no delta |
+
+  "(example)" marks the configuration of the EasyLocal 4 example, the default
+  of both drivers. TSP has a single cost component, so it has no `mixed`
+  mode. The examples have no whole-solution deltas (EasyLocal commit
+  21bc016): the deltas they lack (assignment overload and load imbalance,
+  exam timeslot load) are in `../common/` for EasyLocal 4 and in `el3/` for
+  EasyLocal 3, with the same logic. The delta mode changes the speed only,
+  not the trajectory: on the same seed, the three modes give the same final
+  cost, evaluations and iterations in each framework.
+
+  `matrix.json` records the problems (`problems`) and their delta modes
+  (`delta_modes`); both are part of the matrix key, so results measured on
+  other definitions are not compared with the current ones.
 - **Costs.** The same function in both: Assignment is `1000 · total overload +
   load imbalance` (EasyLocal 3 weighs hard costs by `HARD_WEIGHT = 1000`), Exam
   Timetabling `1000 · conflicts + 10 · consecutive exams + timeslot load`.

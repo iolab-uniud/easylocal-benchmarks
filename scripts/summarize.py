@@ -38,6 +38,13 @@ el3_vs_el4 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(el3_vs_el4)
 
 ALGORITHMS = {"sd": "steepest descent", "fd": "first descent", "sa": "simulated annealing"}
+DELTA_MODES = {
+    "all": "every cost component has a delta evaluation",
+    "mixed": "some cost components have a delta evaluation, the others are "
+             "evaluated on a copy of the solution with the move applied",
+    "none": "no delta evaluation: every move is applied to a copy of the "
+            "solution and its cost computed from scratch",
+}
 
 INTRO = """\
 # Benchmarks
@@ -53,8 +60,11 @@ starts a run.
   2-opt, Assignment with job reassignment, Exam Timetabling with exam moves)
   are written in both frameworks with the same cost functions, delta
   evaluations and neighborhood orders, and searched from the same initial
-  solutions. Both frameworks are measured at every release, in the same job
-  on the same machine.
+  solutions. Each is measured with delta evaluations for all its cost
+  components, for some of them, and for none (TSP has a single component, so
+  no mixed mode): the trajectories are the same, only the speed changes. Both
+  frameworks are measured at every release, in the same job on the same
+  machine.
 - **Infrastructure.** Neighborhood traversal, runner-level search and tracing
   overhead (`infrastructure/` of easylocal-benchmarks).
 
@@ -88,14 +98,15 @@ def version_key(label: str):
 
 
 def aggregate(rows):
-    """Per (instance, algorithm): the median time of each seed over its
-    repetitions, then means over the seeds."""
+    """Per (instance, algorithm, delta mode): the median time of each seed over
+    its repetitions, then means over the seeds."""
     runs = defaultdict(list)
     for row in rows:
-        runs[(row["instance"], row["algorithm"], row["seed"])].append(row)
+        runs[(row["instance"], row["algorithm"], row.get("delta_mode", ""),
+              row["seed"])].append(row)
     groups = defaultdict(list)
-    for (instance, algorithm, _), repetitions in runs.items():
-        groups[(instance, algorithm)].append({
+    for (instance, algorithm, delta_mode, _), repetitions in runs.items():
+        groups[(instance, algorithm, delta_mode)].append({
             "cost": float(repetitions[0]["final_cost"]),
             "evaluations": int(repetitions[0]["evaluations"]),
             "seconds": statistics.median(float(r["seconds"]) for r in repetitions),
@@ -132,7 +143,24 @@ def ratio(value: float) -> str:
     return f"**{text}**" if value > 1 else text
 
 
+def mode_order(mode: str):
+    return (list(DELTA_MODES).index(mode) if mode in DELTA_MODES else len(DELTA_MODES), mode)
+
+
 def comparison_table(el3, el4) -> list[str]:
+    """One table per delta mode."""
+    lines = []
+    for mode in sorted({key[2] for key in el4}, key=mode_order):
+        if lines:
+            lines.append("")
+        if mode:
+            lines += [f"### Delta mode `{mode}`", "",
+                      f"{DELTA_MODES.get(mode, mode).capitalize()}.", ""]
+        lines += table_rows(el3, {k: v for k, v in el4.items() if k[2] == mode})
+    return lines
+
+
+def table_rows(el3, el4) -> list[str]:
     lines = [
         "| Instance | Algorithm | Speed-up | Cost EL3 | Cost EL4 | Time EL3 (s) "
         "| Time EL4 (s) | ns/eval EL3 | ns/eval EL4 |",
@@ -260,7 +288,8 @@ def render(results: pathlib.Path) -> str:
     if len(paired) > 1:
         instances = sorted({key[0] for key in latest})
         lines += ["", "### Across versions", "",
-                  "Geometric mean of the speed-ups over the algorithms, per instance.", "",
+                  "Geometric mean of the speed-ups over the algorithms and the delta "
+                  "modes, per instance.", "",
                   "| Version | Date | " + " | ".join(instances) + " | Overall |",
                   "| --- | --- | " + " | ".join("---:" for _ in instances) + " | ---: |"]
         for label_i, metadata_i, results_i, el3_i in reversed(paired):

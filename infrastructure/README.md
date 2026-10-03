@@ -5,7 +5,7 @@ neighborhood traversal, runner-level search and tracing overhead. A standalone
 CMake project compiled from an EasyLocal checkout (`EASYLOCAL_SOURCE_DIR`,
 default `easylocal/` in this repository), whose examples provide the models.
 The examples bind no delta to the assignment capacity component; the search
-and tracing benchmarks bind the one in `../common/assignment_capacity_delta.hpp`
+and tracing benchmarks bind the one in `../common/assignment_deltas.hpp`
 (the delta the example had until EasyLocal commit 21bc016), so that their
 assignment workload stays a light, allocation-free evaluation per move.
 

@@ -10,8 +10,9 @@
 
     el3-vs-el4.py run [--el3 PATH] [--el4 PATH] --output DIR
                       [--repetitions N] [--toolchain ID] [--label LABEL]
-        Generate the instances and run every instance x algorithm x seed of
-        the matrix with the given drivers (same command line), N times each.
+        Generate the instances and run every instance x algorithm x delta
+        mode x seed of the matrix with the given drivers (same command line),
+        N times each.
         The frameworks alternate run by run, in an order swapped at every
         repetition, so that a slower phase of a shared machine hits both
         alike. Writes DIR/<framework>/results.csv and metadata.json.
@@ -35,7 +36,7 @@ BENCH = ROOT / "el3_vs_el4"
 MATRIX = BENCH / "matrix.json"
 EL3_RELEASE = "v3.3.1"
 
-FIELDS = ["framework", "problem", "instance", "algorithm", "seed", "repetition",
+FIELDS = ["framework", "problem", "instance", "algorithm", "delta_mode", "seed", "repetition",
           "initial_cost", "final_cost", "evaluations", "iterations", "seconds"]
 
 
@@ -58,7 +59,7 @@ def el3_key(toolchain: str) -> str:
         ports)
 
 
-def command_for(driver, matrix, instances, instance, algorithm, seed):
+def command_for(driver, matrix, instances, instance, algorithm, delta_mode, seed):
     problem, name = instance["problem"], instance["name"]
     command = [
         driver,
@@ -66,6 +67,7 @@ def command_for(driver, matrix, instances, instance, algorithm, seed):
         "--instance", str(instances / f"{name}.instance"),
         "--initial", str(instances / f"{name}.seed{seed}.sol"),
         "--algorithm", algorithm,
+        "--delta-mode", delta_mode,
         "--seed", str(seed),
     ]
     if algorithm == "sa":
@@ -90,20 +92,24 @@ def run(args) -> int:
         raise SystemExit("give --el3 and/or --el4")
 
     rows = {framework: [] for framework in drivers}
-    for instance in matrix["instances"]:
-        for algorithm in matrix["algorithms"]:
-            for seed in matrix["seeds"]:
-                for repetition in range(1, args.repetitions + 1):
-                    order = list(drivers) if repetition % 2 else list(reversed(drivers))
-                    for framework in order:
-                        command = command_for(drivers[framework], matrix, instances,
-                                              instance, algorithm, seed)
-                        line = subprocess.run(command, check=True, capture_output=True,
-                                              text=True).stdout.strip().splitlines()[-1]
-                        rows[framework].append([framework, instance["problem"], instance["name"],
-                                                algorithm, seed, repetition, *line.split(",")])
-                        print(f"{framework} {instance['name']} {algorithm} seed={seed} "
-                              f"#{repetition}: {line}", flush=True)
+    runs = [(instance, algorithm, delta_mode, seed)
+            for instance in matrix["instances"]
+            for algorithm in matrix["algorithms"]
+            for delta_mode in matrix["delta_modes"][instance["problem"]]
+            for seed in matrix["seeds"]]
+    for instance, algorithm, delta_mode, seed in runs:
+        for repetition in range(1, args.repetitions + 1):
+            order = list(drivers) if repetition % 2 else list(reversed(drivers))
+            for framework in order:
+                command = command_for(drivers[framework], matrix, instances,
+                                      instance, algorithm, delta_mode, seed)
+                line = subprocess.run(command, check=True, capture_output=True,
+                                      text=True).stdout.strip().splitlines()[-1]
+                rows[framework].append([framework, instance["problem"], instance["name"],
+                                        algorithm, delta_mode, seed, repetition,
+                                        *line.split(",")])
+                print(f"{framework} {instance['name']} {algorithm} deltas={delta_mode} "
+                      f"seed={seed} #{repetition}: {line}", flush=True)
 
     for framework, framework_rows in rows.items():
         directory = output / framework

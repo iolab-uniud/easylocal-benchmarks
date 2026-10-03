@@ -2,7 +2,7 @@
 #include "tsp_variants.hpp"
 
 #include <easylocal/runners/best_improvement.hpp>
-#include "assignment_capacity_delta.hpp"
+#include "assignment_deltas.hpp"
 #include <easylocal/runners/first_improvement.hpp>
 #include "tsp/tour_length_component.hpp"
 #include "tsp/tour_length_delta.hpp"

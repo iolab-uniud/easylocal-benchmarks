@@ -1,10 +1,16 @@
-// A delta evaluator of the capacity component of the EasyLocal assignment
+// Delta evaluators of the two cost components of the EasyLocal assignment
 // example (examples/assignment), which binds none since the examples have no
-// whole-solution deltas. The infrastructure benchmarks keep it so that their
-// assignment workload stays what it was (a light, allocation-free evaluation
-// of each move, so that the framework's own overhead is visible): it is the
-// ReassignCapacityDeltaEvaluator the example had until EasyLocal commit
-// 21bc016, which recomputes the loads of the two machines in O(jobs).
+// whole-solution deltas.
+//
+// ReassignCapacityDeltaEvaluator is the one the example had until EasyLocal
+// commit 21bc016: it recomputes the loads of the two machines in O(jobs). The
+// infrastructure benchmarks bind it so that their assignment workload stays a
+// light, allocation-free evaluation of each move; the EL3-versus-EL4 driver
+// binds it in the `mixed` and `all` delta modes.
+//
+// ReassignLoadImbalanceDeltaEvaluator, for the `all` delta mode, recomputes
+// every machine load in O(jobs) and the imbalance after the move in
+// O(machines); el3_vs_el4/el3/assignment.hh has the same delta.
 #pragma once
 
 #include "assignment/cost_components.hpp"
@@ -12,7 +18,9 @@
 
 #include <cassert>
 #include <cstddef>
+#include <algorithm>
 #include <cstdint>
+#include <vector>
 
 namespace benchmarks::assignment
 {
@@ -92,6 +100,42 @@ public:
             .total_overload =
                 source_after + destination_after - source_before - destination_before,
         };
+    }
+
+private:
+    const AssignmentInstance& instance_;
+};
+
+class ReassignLoadImbalanceDeltaEvaluator
+{
+public:
+    explicit ReassignLoadImbalanceDeltaEvaluator(const AssignmentInstance& instance)
+        : instance_{instance}
+    {
+    }
+
+    std::int64_t delta_evaluate(
+        const AssignmentSolution& solution,
+        const ReassignJobMove& move) const
+    {
+        assert(solution.assignment.size() == instance_.demand.size());
+        assert(move.job < solution.assignment.size());
+        assert(move.destination < instance_.capacity.size());
+
+        std::vector<quantity_type> load(instance_.capacity.size(), quantity_type{0});
+        for (std::size_t job = 0; job < solution.assignment.size(); ++job)
+            load[solution.assignment[job]] += instance_.demand[job];
+
+        const auto [minimum_before, maximum_before] = std::ranges::minmax_element(load);
+        const auto before = *maximum_before - *minimum_before;
+
+        const auto demand = instance_.demand[move.job];
+        load[solution.assignment[move.job]] -= demand;
+        load[move.destination] += demand;
+        const auto [minimum_after, maximum_after] = std::ranges::minmax_element(load);
+        const auto after = *maximum_after - *minimum_after;
+
+        return after - before;
     }
 
 private:

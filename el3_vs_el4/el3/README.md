@@ -27,7 +27,7 @@ flags are added; the EasyLocal 3 headers only produce warnings
 
 ```
 el3_comparison --problem tsp|assignment|exam --instance FILE --initial FILE
-               --algorithm sd|fd|sa --seed N
+               --algorithm sd|fd|sa --seed N [--delta-mode all|mixed|none]
                [--sa-start-temperature T --sa-min-temperature T
                 --sa-cooling-rate R --sa-samples N]
 ```
@@ -47,16 +47,20 @@ solution.
   load_imbalance)`; costs are `long`. Exam: three soft components with weights
   1000, 10 and 1, `long` costs.
 - Deltas are ported line by line, with the same complexity: O(1) 2-opt delta;
-  the student-conflict and consecutive-exam deltas scan the conflicts.
-- The components without a delta in the EasyLocal 4 examples have none here
-  either: the total overload and the load imbalance (assignment) and the
-  timeslot load (exam). They are attached with
-  `NeighborhoodExplorer::AddCostComponent`, which wraps them in a
+  the student-conflict and consecutive-exam deltas scan the conflicts; the
+  overload delta recomputes both machine loads in O(jobs), the load-imbalance
+  delta all the loads in O(jobs); the timeslot-load delta recounts the loads
+  in O(exams). The last three are the deltas of `../../common/`, which the
+  EasyLocal 4 examples do not have.
+- `--delta-mode` selects them as the EasyLocal 4 driver does (see
+  `../README.md`). A component without a delta in the chosen mode is attached
+  with `NeighborhoodExplorer::AddCostComponent`, which wraps it in a
   `DeltaCostComponentAdapter`; `DeltaCostFunctionComponents` then copies the
   solution once per move, applies the move to the copy and computes
-  `ComputeCost(copy) - ComputeCost(current)` for each of them. EasyLocal 4
-  also evaluates a copy, but reuses the cached value of the current solution,
-  so EasyLocal 3 evaluates these components twice per move instead of once.
+  `ComputeCost(copy) - ComputeCost(current)` for each such component. EasyLocal
+  4 also evaluates a copy, but reuses the cached value of the current
+  solution, so EasyLocal 3 evaluates these components twice per move instead
+  of once.
 - `FirstMove`/`NextMove` enumerate in the order of the EasyLocal 4
   `first_move`/`next_move`; `RandomMove` draws uniformly as the EasyLocal 4
   `random_move`, with `Random::Uniform`: two edges redrawn until they form a

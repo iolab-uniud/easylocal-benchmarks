@@ -1,9 +1,11 @@
 // EasyLocal 3 port of the EasyLocal 4 exam-timetabling example
 // (examples/exam_timetabling): move one exam to another timeslot; three soft
 // components (student conflicts x1000, consecutive exams x10, timeslot load
-// x1). Conflicts and consecutive exams have the deltas of cost_components.hpp
-// and cost_deltas.hpp; the timeslot load has none, as in the example, and is
-// evaluated on a copy of the solution with the move applied.
+// x1). In delta mode mixed (the default, the example's configuration),
+// conflicts and consecutive exams have the deltas of cost_components.hpp and
+// cost_deltas.hpp, and the timeslot load has none and is evaluated on a copy
+// of the solution with the move applied; delta mode all adds the timeslot-load
+// delta of common/exam_timetabling_deltas.hpp, delta mode none drops them all.
 #pragma once
 
 #include "helpers/solutionmanager.hh"
@@ -237,6 +239,29 @@ public:
                 change += c.students;
         }
         return change;
+    }
+};
+
+// Port of TimeslotLoadDeltaEvaluator (common/exam_timetabling_deltas.hpp),
+// with its O(exams) recount of the timeslot loads: delta mode all.
+class TimeslotLoadDelta : public DeltaCostComponent<Input, Timetable, MoveExam, CFtype>
+{
+public:
+    TimeslotLoadDelta(const Input& in, TimeslotLoad& cc)
+        : DeltaCostComponent<Input, Timetable, MoveExam, CFtype>(in, cc, "TimeslotLoadDelta") {}
+
+    CFtype ComputeDeltaCost(const Timetable& st, const MoveExam& mv) const override
+    {
+        const auto source = st.timeslot_by_exam[mv.exam];
+        std::vector<CFtype> load(in.timeslot_count, 0);
+        for (const auto t : st.timeslot_by_exam)
+            ++load[t];
+        const auto source_load = load[source];
+        const auto destination_load = load[mv.destination];
+        const auto before = source_load * source_load + destination_load * destination_load;
+        const auto after = (source_load - 1) * (source_load - 1) +
+                           (destination_load + 1) * (destination_load + 1);
+        return after - before;
     }
 };
 

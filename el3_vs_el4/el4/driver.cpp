@@ -2,14 +2,22 @@
 //
 //   el4_comparison --problem tsp|assignment|exam --instance FILE
 //       --initial FILE --algorithm sd|fd|sa --seed N
+//       [--delta-mode all|mixed|none]
 //       [--sa-start-temperature T --sa-min-temperature T
 //        --sa-cooling-rate R --sa-samples N]
 //
 // Prints one line, initial_cost,final_cost,evaluations,iterations,seconds;
 // seconds time the search only, not reading the files or building services.
-// The models are the examples' own (EASYLOCAL_SOURCE_DIR/examples), with
-// their delta evaluators; the costs are the weighted sums of the EasyLocal 3
-// ports, so that both frameworks optimize the same function.
+// The models are the examples' own (EASYLOCAL_SOURCE_DIR/examples); the costs
+// are the weighted sums of the EasyLocal 3 ports, so that both frameworks
+// optimize the same function.
+//
+// --delta-mode chooses which cost components have a delta evaluator: all of
+// them (all), some (mixed) or none, when every move is evaluated on a
+// candidate solution. Without it, each problem runs the configuration of its
+// example: all for TSP, none for assignment, mixed for exam. TSP has a single
+// component, hence no mixed mode. The deltas the examples lack are in
+// ../../common.
 
 #include <easylocal/app/io.hpp>
 #include <easylocal/helpers/recipes.hpp>
@@ -28,6 +36,9 @@
 #include "exam_timetabling/neighborhood_explorer.hpp"
 #include "tsp/neighborhood_explorer.hpp"
 #include "tsp/tour_length_delta.hpp"
+
+#include "assignment_deltas.hpp"
+#include "exam_timetabling_deltas.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -53,6 +64,7 @@ struct Options
     std::string instance;
     std::string initial;
     std::string algorithm;
+    std::string delta_mode; // empty: the example's configuration
     std::uint64_t seed{1};
     el::runners::temperature::ClassicParameters annealing{};
 };
@@ -79,6 +91,10 @@ auto parse(int argc, char* argv[]) -> Options
         .algorithm = required("--algorithm"),
         .seed = std::stoull(required("--seed")),
     };
+    if (const auto found = values.find("--delta-mode"); found != values.end())
+    {
+        options.delta_mode = found->second;
+    }
     if (options.algorithm == "sa")
     {
         options.annealing = {
@@ -168,54 +184,98 @@ struct TotalOverload
     }
 };
 
+[[noreturn]] void unsupported_mode(const Options& options)
+{
+    throw std::runtime_error{
+        "unsupported --delta-mode " + options.delta_mode + " for " + options.problem};
+}
+
+// all (the example's configuration): the 2-opt delta; none: no delta.
 void run_tsp(const Options& options)
 {
     const auto input = el::load_input<tsp::TspInstance>(options.instance);
     tsp::Tour initial;
     initial.tour = read_values(options.initial);
-    run(options, input, initial,
-        el::solution_manager<tsp::TspSolutionManager>()
-            | el::cost::apply(tsp::TourLengthCost{},
-                              el::component<tsp::TourLengthComponent>()),
-        el::neighborhood<tsp::TwoOptNeighborhoodExplorer>()
-            | el::delta<tsp::TourLengthComponent,
-                        tsp::TwoOptTourLengthDeltaEvaluator>());
+    const auto sm = el::solution_manager<tsp::TspSolutionManager>()
+                  | el::cost::apply(tsp::TourLengthCost{},
+                                    el::component<tsp::TourLengthComponent>());
+    const auto neighborhood = el::neighborhood<tsp::TwoOptNeighborhoodExplorer>();
+    const auto& mode = options.delta_mode;
+    if (mode.empty() || mode == "all")
+        run(options, input, initial, sm,
+            neighborhood
+                | el::delta<tsp::TourLengthComponent,
+                            tsp::TwoOptTourLengthDeltaEvaluator>());
+    else if (mode == "none")
+        run(options, input, initial, sm, neighborhood);
+    else
+        unsupported_mode(options);
 }
 
-// EasyLocal 3 adds its hard costs with weight HARD_WEIGHT = 1000. The example
-// binds no delta evaluator: every move is evaluated on a candidate solution.
+// EasyLocal 3 adds its hard costs with weight HARD_WEIGHT = 1000.
+// none (the example's configuration): no delta; mixed: the capacity delta
+// only; all: the capacity and the load-imbalance deltas.
 void run_assignment(const Options& options)
 {
+    namespace deltas = benchmarks::assignment;
     const auto input = el::load_input<assignment::AssignmentInstance>(options.instance);
     assignment::AssignmentSolution initial;
     initial.assignment = read_values(options.initial);
-    run(options, input, initial,
+    const auto sm =
         el::solution_manager<assignment::AssignmentSolutionManager>()
-            | el::cost::sum(
-                  el::cost::apply(TotalOverload{},
-                                  el::component<assignment::CapacityCostComponent>())
-                      * 1000,
-                  el::component<assignment::LoadImbalanceCostComponent>()),
-        el::neighborhood<assignment::ReassignJobNeighborhoodExplorer>());
+        | el::cost::sum(
+              el::cost::apply(TotalOverload{},
+                              el::component<assignment::CapacityCostComponent>())
+                  * 1000,
+              el::component<assignment::LoadImbalanceCostComponent>());
+    const auto neighborhood =
+        el::neighborhood<assignment::ReassignJobNeighborhoodExplorer>();
+    const auto capacity = el::delta<assignment::CapacityCostComponent,
+                                    deltas::ReassignCapacityDeltaEvaluator>();
+    const auto& mode = options.delta_mode;
+    if (mode.empty() || mode == "none")
+        run(options, input, initial, sm, neighborhood);
+    else if (mode == "mixed")
+        run(options, input, initial, sm, neighborhood | capacity);
+    else if (mode == "all")
+        run(options, input, initial, sm,
+            neighborhood | capacity
+                | el::delta<assignment::LoadImbalanceCostComponent,
+                            deltas::ReassignLoadImbalanceDeltaEvaluator>());
+    else
+        unsupported_mode(options);
 }
 
-// The timeslot load has no delta evaluator in the example: it is evaluated on
-// a candidate solution.
+// mixed (the example's configuration): the conflict and consecutive-exam
+// deltas, none for the timeslot load; all: the timeslot-load delta too; none:
+// no delta.
 void run_exam(const Options& options)
 {
     const auto input = el::load_input<exam::ExamTimetablingInstance>(options.instance);
     exam::ExamTimetable initial;
     initial.timeslot_by_exam = read_values(options.initial);
-    run(options, input, initial,
-        el::solution_manager<exam::ExamTimetablingSolutionManager>()
-            | el::cost::sum(
-                  el::component<exam::StudentConflictComponent>() * 1000,
-                  el::component<exam::ConsecutiveExamComponent>() * 10,
-                  el::component<exam::TimeslotLoadComponent>()),
-        el::neighborhood<exam::MoveExamNeighborhoodExplorer>()
-            | el::delta<exam::StudentConflictComponent>()
-            | el::delta<exam::ConsecutiveExamComponent,
-                        exam::ConsecutiveExamDeltaEvaluator>());
+    const auto sm = el::solution_manager<exam::ExamTimetablingSolutionManager>()
+                  | el::cost::sum(
+                        el::component<exam::StudentConflictComponent>() * 1000,
+                        el::component<exam::ConsecutiveExamComponent>() * 10,
+                        el::component<exam::TimeslotLoadComponent>());
+    const auto neighborhood = el::neighborhood<exam::MoveExamNeighborhoodExplorer>();
+    const auto mixed = neighborhood
+                     | el::delta<exam::StudentConflictComponent>()
+                     | el::delta<exam::ConsecutiveExamComponent,
+                                 exam::ConsecutiveExamDeltaEvaluator>();
+    const auto& mode = options.delta_mode;
+    if (mode.empty() || mode == "mixed")
+        run(options, input, initial, sm, mixed);
+    else if (mode == "all")
+        run(options, input, initial, sm,
+            mixed
+                | el::delta<exam::TimeslotLoadComponent,
+                            benchmarks::exam_timetabling::TimeslotLoadDeltaEvaluator>());
+    else if (mode == "none")
+        run(options, input, initial, sm, neighborhood);
+    else
+        unsupported_mode(options);
 }
 
 } // namespace

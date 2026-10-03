@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 
 # EasyLocal 4 side of the EL3-versus-EL4 benchmark: the examples' models,
-# compiled from an EasyLocal checkout (header-only Core, no other dependency).
+# compiled from an EasyLocal checkout (header-only Core, no other dependency),
+# and the deltas of ../../common that the examples do not have.
 project(easylocal_el4_comparison LANGUAGES CXX)
 
 set(EASYLOCAL_SOURCE_DIR "" CACHE PATH "Path to an EasyLocal 4 checkout")
@@ -17,4 +18,5 @@ target_include_directories(
     PRIVATE
         "${EASYLOCAL_SOURCE_DIR}/include"
         "${EASYLOCAL_SOURCE_DIR}/examples"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../common"
 )
