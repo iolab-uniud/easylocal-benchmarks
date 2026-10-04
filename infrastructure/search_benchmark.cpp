@@ -7,6 +7,7 @@
 #include "tsp/tour_length_component.hpp"
 #include "tsp/tour_length_delta.hpp"
 
+#include <easylocal/cost.hpp>
 #include <easylocal/runners/runner.hpp>
 
 #include <algorithm>
@@ -324,6 +325,8 @@ auto termination_name(const easylocal::termination_reason termination)
         return "target";
     case easylocal::termination_reason::idle_limit_reached:
         return "idle";
+    case easylocal::termination_reason::time_limit_reached:
+        return "time";
     }
 
     return "unknown";
@@ -692,13 +695,12 @@ void benchmark_assignment(
               },
               easylocal::component<assignment::CapacityCostComponent>());
     const auto cursor_recipe =
-        easylocal::neighborhood<assignment::ReassignJobNeighborhoodExplorer>()
+        easylocal::neighborhood<bench::assignment::CursorNeighborhoodExplorer>()
         | easylocal::delta<
               assignment::CapacityCostComponent,
               benchmarks::assignment::ReassignCapacityDeltaEvaluator>();
     const auto coroutine_recipe =
-        easylocal::neighborhood<
-            bench::assignment::CoroutineNeighborhoodExplorer>()
+        easylocal::neighborhood<assignment::ReassignJobNeighborhoodExplorer>()
         | easylocal::delta<
               assignment::CapacityCostComponent,
               benchmarks::assignment::ReassignCapacityDeltaEvaluator>();
@@ -744,19 +746,17 @@ void benchmark_tsp(
 
     const auto manager_recipe =
         easylocal::solution_manager<tsp::TspSolutionManager>()
-        | easylocal::cost::apply(
-              tsp::TourLengthCost{},
-              easylocal::component<tsp::TourLengthComponent>());
+        | easylocal::component<tsp::TourLengthComponent>();
     const auto cursor_recipe =
+        easylocal::neighborhood<bench::tsp::CursorNeighborhoodExplorer>()
+        | easylocal::delta<
+              tsp::TourLengthComponent,
+              tsp::TwoOptTourLengthDelta>();
+    const auto coroutine_recipe =
         easylocal::neighborhood<tsp::TwoOptNeighborhoodExplorer>()
         | easylocal::delta<
               tsp::TourLengthComponent,
-              tsp::TwoOptTourLengthDeltaEvaluator>();
-    const auto coroutine_recipe =
-        easylocal::neighborhood<bench::tsp::CoroutineNeighborhoodExplorer>()
-        | easylocal::delta<
-              tsp::TourLengthComponent,
-              tsp::TwoOptTourLengthDeltaEvaluator>();
+              tsp::TwoOptTourLengthDelta>();
 
     const auto same_solution = [](const tsp::Tour& lhs,
                                   const tsp::Tour& rhs) {

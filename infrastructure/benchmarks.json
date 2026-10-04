@@ -12,9 +12,9 @@
         "best-improvement": "`runners::BestImprovement`, which scans the whole neighborhood and applies its best move"
       },
       "Variants": {
-        "raw-cursor": "the algorithm written by hand, calling the explorer's `first_move` and `next_move` directly, without a range and outside the runner framework: the reference the others are measured against",
-        "cursor-range": "the stock runner iterating `easylocal::moves`, which turns the example's `first_move`/`next_move` cursor into a lazy range holding one move, without materializing the neighborhood: the difference from `raw-cursor` is the cost of the range and the runner",
-        "coroutine-range": "the stock runner on an explorer whose `moves()` is a coroutine (`easylocal::generator`), as a user would write it"
+        "raw-cursor": "the algorithm written by hand, calling `first_move` and `next_move` of a cursor explorer of the benchmark (the one the examples had until EasyLocal 4.0.0-alpha.1) directly, without a range and outside the runner framework: the reference the others are measured against",
+        "cursor-range": "the stock runner iterating `easylocal::moves`, which turns the `first_move`/`next_move` cursor of the same explorer into a lazy range holding one move, without materializing the neighborhood: the difference from `raw-cursor` is the cost of the range and the runner",
+        "coroutine-range": "the stock runner on the example's explorer, whose `moves()` is a coroutine (`easylocal::generator`, which is `std::generator` where the standard library provides it), as a user would write it"
       }
     }
   },
@@ -30,8 +30,8 @@
         "light-consumer": "also reads the data of the solution and of the instance the move touches (demands and capacities, distances), as a minimal evaluation would"
       },
       "Variants": {
-        "cursor": "the example's explorer with `first_move` and `next_move`",
-        "coroutine-custom": "`moves()` as an `easylocal::generator` coroutine",
+        "cursor": "a cursor explorer of the benchmark, with `first_move` and `next_move` (the one the examples had until EasyLocal 4.0.0-alpha.1), iterated through `easylocal::moves`",
+        "coroutine-custom": "`moves()` as a coroutine of a minimal generator of the benchmark, like the `easylocal::generator` of a standard library without `std::generator`",
         "coroutine-std": "`moves()` as a `std::generator`, where the standard library provides it"
       }
     }

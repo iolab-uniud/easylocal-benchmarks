@@ -15,18 +15,24 @@ reporting timings; the normal test suite remains authoritative for correctness.
 
 The benchmark keeps the implementations that are architecturally relevant:
 
-- `raw-cursor`: direct `first_move` / `next_move`, used only as a performance
-  oracle in the search benchmark;
-- `cursor`: the real Assignment/TSP production explorers, using the public
-  `easylocal::moves` adapter for deterministic neighborhood authoring;
-- `coroutine-custom`: a coroutine-backed input range, representing coroutine
-  neighborhood authoring as an allowed alternative;
+- `raw-cursor`: direct `first_move` / `next_move` of the benchmark's cursor
+  explorers, used only as a performance oracle in the search benchmark;
+- `cursor` (`cursor-range` in the search benchmark): the same cursor explorers
+  through the public `easylocal::moves` adapter;
+- `coroutine-custom`: a coroutine-backed input range of the benchmark
+  (`generator.hpp`);
 - `coroutine-std`: `std::generator`, when the active standard library provides
-  it.
+  it;
+- `coroutine-range` (search benchmark): the example's explorer, whose
+  `moves()` is an `easylocal::generator` coroutine.
 
-The benchmark deliberately does not duplicate production cursor explorers: raw-cursor
-and cursor-range measurements instantiate the real Assignment/TSP explorers directly.
-Only coroutine alternatives remain benchmark-local.
+Since EasyLocal 4.0.0-alpha.1 the Assignment and TSP examples enumerate their
+moves with an `easylocal::generator` and no longer have a cursor: the cursor
+explorers are the benchmark's own (`CursorNeighborhoodExplorer` in
+`assignment_variants.hpp` and `tsp_variants.hpp`), the examples' cursors as
+they were until then, with the same moves in the same order. The traversal
+benchmark checks that every variant, and the example's explorer, produce the
+same moves; the search benchmark that every variant reaches the same result.
 
 Historical source-shape diagnostics and experimental workaround variants are
 deliberately not retained here.

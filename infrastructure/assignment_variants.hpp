@@ -14,6 +14,91 @@ namespace easylocal::benchmark::neighborhood_traversal::assignment
 using ::assignment::ReassignJobMove;
 using ::assignment::AssignmentSolution;
 using ::assignment::AssignmentSolutionManager;
+using ::assignment::machine_id;
+
+// The reassign explorer with the cursor protocol of EasyLocal 3 (first_move and
+// next_move), as the Assignment example wrote it until EasyLocal
+// 4.0.0-alpha.1: the same moves, in the same order, as the example's moves()
+// generator.
+class CursorNeighborhoodExplorer
+    : public easylocal::neighborhood_explorer_base<
+          AssignmentSolutionManager,
+          ReassignJobMove>
+{
+public:
+    using neighborhood_explorer_base::neighborhood_explorer_base;
+
+    [[nodiscard]]
+    auto is_valid(
+        const AssignmentSolution& solution,
+        const ReassignJobMove& move) const -> bool
+    {
+        return move.job < solution.assignment.size() &&
+               move.destination < input().capacity.size() &&
+               solution.assignment[move.job] != move.destination;
+    }
+
+    auto first_move(
+        const AssignmentSolution& solution,
+        ReassignJobMove& move) const -> bool
+    {
+        const auto machine_count = input().capacity.size();
+
+        if (solution.assignment.empty() || machine_count < 2)
+        {
+            return false;
+        }
+
+        move.job = 0;
+        move.destination = first_destination(solution, move.job);
+        return true;
+    }
+
+    auto next_move(
+        const AssignmentSolution& solution,
+        ReassignJobMove& move) const -> bool
+    {
+        const auto machine_count = input().capacity.size();
+        const auto current_machine = solution.assignment[move.job];
+
+        for (auto destination = move.destination + 1;
+             destination < machine_count;
+             ++destination)
+        {
+            if (destination != current_machine)
+            {
+                move.destination = destination;
+                return true;
+            }
+        }
+
+        if (move.job + 1 < solution.assignment.size())
+        {
+            ++move.job;
+            move.destination = first_destination(solution, move.job);
+            return true;
+        }
+
+        return false;
+    }
+
+    void make_move(AssignmentSolution& solution, const ReassignJobMove& move) const noexcept
+    {
+        solution.assignment[move.job] = move.destination;
+    }
+
+private:
+    [[nodiscard]]
+    auto first_destination(
+        const AssignmentSolution& solution,
+        const std::size_t job) const noexcept -> machine_id
+    {
+        assert(input().capacity.size() >= 2);
+        assert(job < solution.assignment.size());
+
+        return solution.assignment[job] == 0 ? machine_id{1} : machine_id{0};
+    }
+};
 
 class CoroutineNeighborhoodExplorer
 {
@@ -37,7 +122,7 @@ public:
     [[nodiscard]]
     auto is_valid(
         const AssignmentSolution& solution,
-        const ReassignJobMove& move) const noexcept -> bool
+        const ReassignJobMove& move) const -> bool
     {
         return move.job < solution.assignment.size() &&
                move.destination < solution_manager_.input().capacity.size() &&
@@ -101,7 +186,7 @@ public:
     [[nodiscard]]
     auto is_valid(
         const AssignmentSolution& solution,
-        const ReassignJobMove& move) const noexcept -> bool
+        const ReassignJobMove& move) const -> bool
     {
         return move.job < solution.assignment.size() &&
                move.destination < solution_manager_.input().capacity.size() &&

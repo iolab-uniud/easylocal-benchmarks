@@ -50,7 +50,8 @@ auto validate_assignment_variants() -> bool
 #if EASYLOCAL_BENCHMARK_HAS_STD_GENERATOR
     const bench::assignment::StdCoroutineNeighborhoodExplorer std_coroutine{manager};
 #endif
-    const assignment::ReassignJobNeighborhoodExplorer cursor{manager};
+    const bench::assignment::CursorNeighborhoodExplorer cursor{manager};
+    const assignment::ReassignJobNeighborhoodExplorer example{manager};
 
     const auto encode = [](const assignment::ReassignJobMove& move) {
         return static_cast<std::uint64_t>(move.job) * 1024ULL +
@@ -58,7 +59,8 @@ auto validate_assignment_variants() -> bool
     };
 
     const auto expected = encoded_moves(easylocal::moves(cursor, solution), encode);
-    if (expected != encoded_moves(coroutine.moves(solution), encode))
+    if (expected != encoded_moves(example.moves(solution), encode) ||
+        expected != encoded_moves(coroutine.moves(solution), encode))
     {
         return false;
     }
@@ -90,7 +92,8 @@ auto validate_tsp_variants() -> bool
 #if EASYLOCAL_BENCHMARK_HAS_STD_GENERATOR
     const bench::tsp::StdCoroutineNeighborhoodExplorer std_coroutine{manager};
 #endif
-    const tsp::TwoOptNeighborhoodExplorer cursor{manager};
+    const bench::tsp::CursorNeighborhoodExplorer cursor{manager};
+    const tsp::TwoOptNeighborhoodExplorer example{manager};
 
     const auto encode = [](const tsp::TwoOptMove& move) {
         return static_cast<std::uint64_t>(move.first_edge) * 1024ULL +
@@ -98,7 +101,8 @@ auto validate_tsp_variants() -> bool
     };
 
     const auto expected = encoded_moves(easylocal::moves(cursor, solution), encode);
-    if (expected != encoded_moves(coroutine.moves(solution), encode))
+    if (expected != encoded_moves(example.moves(solution), encode) ||
+        expected != encoded_moves(coroutine.moves(solution), encode))
     {
         return false;
     }
@@ -307,7 +311,7 @@ void benchmark_assignment(
 #if EASYLOCAL_BENCHMARK_HAS_STD_GENERATOR
     const bench::assignment::StdCoroutineNeighborhoodExplorer coroutine_std{manager};
 #endif
-    const assignment::ReassignJobNeighborhoodExplorer cursor{manager};
+    const bench::assignment::CursorNeighborhoodExplorer cursor{manager};
 
     const auto traversal_consumer = [](const assignment::ReassignJobMove& move) {
         return static_cast<std::uint64_t>(move.job) * 1'000'003ULL +
@@ -381,7 +385,7 @@ void benchmark_tsp(
 #if EASYLOCAL_BENCHMARK_HAS_STD_GENERATOR
     const bench::tsp::StdCoroutineNeighborhoodExplorer coroutine_std{manager};
 #endif
-    const tsp::TwoOptNeighborhoodExplorer cursor{manager};
+    const bench::tsp::CursorNeighborhoodExplorer cursor{manager};
 
     const auto traversal_consumer = [](const tsp::TwoOptMove& move) {
         return static_cast<std::uint64_t>(move.first_edge) * 1'000'003ULL +
