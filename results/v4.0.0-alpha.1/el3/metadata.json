@@ -1,0 +1,13 @@
+{
+  "framework": "el3",
+  "label": "v4.0.0-alpha.1",
+  "matrix_key": "0c47d41c4ec6cfff",
+  "el3_key": "a3868a43993ba495",
+  "toolchain": "gcc16",
+  "el3_release": "v3.4.1",
+  "repetitions": 3,
+  "commit": "1f2cafaec7dd481d96ec5cdcd349aeb0351f907a",
+  "date": "2026-10-04T19:45:50+00:00",
+  "platform": "Linux x86_64",
+  "runner_image": "ubuntu26 20260927.149.1"
+}
