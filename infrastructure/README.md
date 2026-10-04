@@ -31,6 +31,13 @@ Only coroutine alternatives remain benchmark-local.
 Historical source-shape diagnostics and experimental workaround variants are
 deliberately not retained here.
 
+`benchmarks.json` describes, for each results file (`search`, `traversal`,
+`trace`, `trace-cost-encoding`), the setup of the benchmark and every domain,
+workload and variant of its table: `scripts/summarize.py` renders it as the
+legend of the Benchmarks page, and warns about a name in the results that it
+does not describe. A benchmark, workload or variant added to the code is
+described there.
+
 Run the complete benchmark locally, from the root of this repository, with:
 
 ```bash

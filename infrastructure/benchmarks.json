@@ -1,0 +1,67 @@
+{
+  "description": "What the infrastructure benchmarks measure, by results file: the setup of each benchmark and what every row and variant of its table is. scripts/summarize.py renders it as the legend of the Benchmarks page; a benchmark, workload or variant added to the code is described here.",
+  "search": {
+    "setup": "A stock runner, First Improvement or Best Improvement, on two problems of the EasyLocal examples. The variants are the ways the runner reaches the moves of the neighborhood.",
+    "legend": {
+      "Domains": {
+        "assignment": "Assignment, 96 jobs on 8 machines, job reassignment moves",
+        "tsp": "TSP, 64 cities, 2-opt moves"
+      },
+      "Algorithms": {
+        "first-improvement": "`runners::FirstImprovement`, which applies the first improving move of each scan",
+        "best-improvement": "`runners::BestImprovement`, which scans the whole neighborhood and applies its best move"
+      },
+      "Variants": {
+        "raw-cursor": "the algorithm written by hand against the explorer's `first_move` and `next_move`, outside the runner framework: the reference the others are measured against",
+        "cursor-range": "the stock runner on the example's cursor explorer, through `easylocal::moves`",
+        "coroutine-range": "the stock runner on an explorer whose `moves()` is a coroutine (`easylocal::generator`), as a user would write it"
+      }
+    }
+  },
+  "traversal": {
+    "setup": "The moves of a whole neighborhood, visited without a runner.",
+    "legend": {
+      "Domains": {
+        "assignment-medium": "Assignment, 256 jobs on 32 machines, job reassignment moves",
+        "tsp-medium": "TSP, 256 cities, 2-opt moves"
+      },
+      "Workloads": {
+        "traversal": "reads only the fields of each move, so the time is the cost of producing the moves",
+        "light-consumer": "also reads the data of the solution and of the instance the move touches (demands and capacities, distances), as a minimal evaluation would"
+      },
+      "Variants": {
+        "cursor": "the example's explorer with `first_move` and `next_move`",
+        "coroutine-custom": "`moves()` as an `easylocal::generator` coroutine",
+        "coroutine-std": "`moves()` as a `std::generator`, where the standard library provides it"
+      }
+    }
+  },
+  "trace": {
+    "setup": "A First Improvement run on an Assignment instance of 96 jobs on 8 machines, traced by each tracer; \"without\" is the same run with no tracer argument.",
+    "legend": {
+      "Tracers": {
+        "explicit-null": "`trace::null_tracer` passed explicitly; it should cost nothing",
+        "counting": "a tracer that only counts the events: the cost of producing them",
+        "memory": "`trace::memory_recorder`, every event kept in memory",
+        "binary-buffered-discard": "`trace::buffered_binary_recorder` (the ELTR binary format) writing to a stream that discards the bytes: encoding and buffering without input/output",
+        "binary-buffered-discard-visited": "the same, on a problem with a solution hash, which records a `solution_visited` event with the hash of each solution the search moves to",
+        "binary-buffered-discard-without-visits": "the same problem, with `solution_visited` left out at compile time (`trace::without<event::solution_visited>`); it should cost what `binary-buffered-discard` costs",
+        "binary-async-producer-discard": "`trace::async_binary_recorder`, which hands the events to a writer thread, writing to a discarding stream; the time of the search until it ends",
+        "binary-async-total-discard": "the same, also waiting for the writer to finish",
+        "binary-buffered-file": "`trace::buffered_binary_recorder` writing a temporary file (without `fsync`)",
+        "binary-async-producer-file": "`trace::async_binary_recorder` writing a temporary file; the time of the search until it ends",
+        "binary-async-total-file": "the same, also waiting for the writer to finish"
+      }
+    }
+  },
+  "trace-cost-encoding": {
+    "setup": "A `move_evaluated` event, which carries the current and the candidate cost, encoded one million times in the ELTR binary format; bytes/event is the size of the encoded event.",
+    "legend": {
+      "Costs": {
+        "scalar-i64": "a 64-bit integer",
+        "lexicographic-2xi64": "a `cost::lexicographic` of two 64-bit integers",
+        "hierarchical-2xi64-plus-i64": "a `cost::hierarchical` with that lexicographic cost as hard cost and a 64-bit integer as soft cost"
+      }
+    }
+  }
+}
