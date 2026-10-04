@@ -1,4 +1,4 @@
-// EasyLocal 3 (v3.4.0) side of the EL3-versus-EL4 benchmark; same command line
+// EasyLocal 3 (v3.4.1) side of the EL3-versus-EL4 benchmark; same command line
 // and output as ../el4/driver.cpp:
 //
 //   el3_comparison --problem tsp|assignment|exam --instance FILE
@@ -24,12 +24,10 @@
 #include "utils/random.hh"
 
 #include <chrono>
-#include <cmath>
 #include <cstddef>
 #include <exception>
 #include <fstream>
 #include <iomanip>
-#include <limits>
 #include <iostream>
 #include <map>
 #include <stdexcept>
@@ -119,18 +117,14 @@ void Run(const Options& o, const Input& in, const Solution& initial,
             std::ofstream(o.output) << s << '\n';
     };
 
-    // The descents run until a local optimum.
-    constexpr auto unlimited_evaluations = std::numeric_limits<unsigned long int>::max();
     if (o.algorithm == "sd")
     {
         SteepestDescent<Input, Solution, Move, CostStructure> runner(in, sm, ne, "sd");
-        runner.SetParameter("max_evaluations", unlimited_evaluations);
         timed(runner);
     }
     else if (o.algorithm == "fd")
     {
         FirstDescent<Input, Solution, Move, CostStructure> runner(in, sm, ne, "fd");
-        runner.SetParameter("max_evaluations", unlimited_evaluations);
         timed(runner);
     }
     else if (o.algorithm == "sa")
@@ -139,15 +133,7 @@ void Run(const Options& o, const Input& in, const Solution& initial,
         runner.SetParameter("start_temperature", o.start_temperature);
         runner.SetParameter("min_temperature", o.min_temperature);
         runner.SetParameter("cooling_rate", o.cooling_rate);
-        // samples proposals per temperature. EasyLocal 3.4 cannot be given
-        // max_neighbors_sampled (its stop criterion still reads
-        // max_evaluations, which it then rejects), so the budget is the
-        // samples of every temperature level, from which it derives the same
-        // samples per level (max_evaluations / total_number_of_temperatures).
-        const auto levels = static_cast<unsigned int>(std::ceil(
-            -std::log(o.start_temperature / o.min_temperature) / std::log(o.cooling_rate)));
-        runner.SetParameter(
-            "max_evaluations", static_cast<unsigned long int>(o.samples) * levels);
+        runner.SetParameter("max_neighbors_sampled", static_cast<unsigned int>(o.samples));
         timed(runner);
     }
     else

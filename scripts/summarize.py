@@ -55,7 +55,7 @@ INTRO = """\
 # Benchmarks
 
 EasyLocal 4 is measured at every release against EasyLocal 3 (the
-[v3.4.0 tag](https://github.com/iolab-uniud/easylocal-legacy/tree/v3.4.0)
+[v3.4.1 tag](https://github.com/iolab-uniud/easylocal-legacy/tree/v3.4.1)
 of `easylocal-legacy`) and on its own infrastructure. The numbers are produced
 in [easylocal-benchmarks](https://github.com/iolab-uniud/easylocal-benchmarks)
 on a GitHub-hosted runner (Ubuntu, GCC 16, Release); each EasyLocal release
@@ -441,7 +441,7 @@ def environment(label: str, metadata: dict, directory: pathlib.Path) -> list[str
     commit = next(
         (machine["git_commit"][:7] for _, machine in parts if machine.get("git_commit")), "")
     versions = f"EasyLocal 4 {label}" + (f" ({commit})" if commit else "")
-    versions += f"; EasyLocal 3 {metadata.get('el3_release') or 'v3.4.0'}"
+    versions += f"; EasyLocal 3 {metadata.get('el3_release') or 'v3.4.1'}"
     lines = [
         "",
         "## How it was measured",
