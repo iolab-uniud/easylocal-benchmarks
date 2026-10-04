@@ -12,8 +12,8 @@
         "best-improvement": "`runners::BestImprovement`, which scans the whole neighborhood and applies its best move"
       },
       "Variants": {
-        "raw-cursor": "the algorithm written by hand against the explorer's `first_move` and `next_move`, outside the runner framework: the reference the others are measured against",
-        "cursor-range": "the stock runner on the example's cursor explorer, through `easylocal::moves`",
+        "raw-cursor": "the algorithm written by hand, calling the explorer's `first_move` and `next_move` directly, without a range and outside the runner framework: the reference the others are measured against",
+        "cursor-range": "the stock runner iterating `easylocal::moves`, which turns the example's `first_move`/`next_move` cursor into a lazy range holding one move, without materializing the neighborhood: the difference from `raw-cursor` is the cost of the range and the runner",
         "coroutine-range": "the stock runner on an explorer whose `moves()` is a coroutine (`easylocal::generator`), as a user would write it"
       }
     }
