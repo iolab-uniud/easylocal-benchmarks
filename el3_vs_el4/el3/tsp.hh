@@ -99,7 +99,7 @@ public:
     {
         st.tour.resize(in.city_count);
         std::iota(st.tour.begin(), st.tour.end(), std::size_t{0});
-        std::shuffle(st.tour.begin(), st.tour.end(), Random::GetGenerator());
+        Random::Shuffle(st.tour);
     }
 
     bool CheckConsistency(const Tour& st) const override

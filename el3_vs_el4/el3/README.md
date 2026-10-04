@@ -2,7 +2,7 @@
 
 A standalone CMake project that ports the three EasyLocal 4 examples used by
 `../el4/driver.cpp`, in their current form, (TSP 2-opt, assignment reassign-job, exam-timetabling
-move-exam) to EasyLocal 3 (release v3.3.1) and runs them with the same command
+move-exam) to EasyLocal 3 (release v3.4.0) and runs them with the same command
 line and the same output.
 
 ## Build
@@ -10,9 +10,9 @@ line and the same output.
 EasyLocal 3 is header-only; it needs Boost.program_options and Threads.
 
 ```sh
-curl -L https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.3.1.tar.gz | tar xz
+curl -L https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.4.0.tar.gz | tar xz
 cmake -S el3_vs_el4/el3 -B build/el3 -DCMAKE_BUILD_TYPE=Release \
-      -DEL3_SOURCE_DIR=$PWD/easylocal-legacy-3.3.1
+      -DEL3_SOURCE_DIR=$PWD/easylocal-legacy-3.4.0
 cmake --build build/el3
 ```
 
@@ -74,18 +74,16 @@ solution.
 
 ## Differences
 
-- `fd`: EasyLocal 3 `FirstDescent` scans cyclically, from the move after the
-  last one applied (`SelectFirst(start_move, ...)`), while EasyLocal 4
-  `FirstImprovement` restarts every scan from the first move: the two follow
-  different trajectories. In v3.3 that cyclic scan never terminated; v3.3.1
-  fixes it (and is why the benchmark uses v3.3.1). When the last move applied
-  is no longer in the neighborhood, as in assignment and exam, the final scan
-  explores some moves twice.
+- `fd`: EasyLocal 3 `FirstDescent` starts each scan from a random move and
+  wraps around to it (`SelectRandomFirst`, which compares moves with
+  `operator<`), while EasyLocal 4 `FirstImprovement` restarts every scan from
+  the first move: the two follow different trajectories.
 - `sd`: `SelectBest` breaks ties among the best moves at random, EasyLocal 4
   `BestImprovement` keeps the first one, so the trajectories diverge at the
   first tie.
-- `sa`: the random streams differ (EasyLocal 3 uses a global `std::mt19937`,
-  and `std::uniform_int_distribution` differs between libc++ and libstdc++);
+- `sa`: the random streams differ (EasyLocal 3 draws from linear congruential
+  engines sized to the range, and `std::uniform_int_distribution` differs
+  between libc++ and libstdc++);
   the schedule and the number of evaluations are the same. An EasyLocal 3
   iteration is one accepted move (or the end of a temperature), not one
   sampled move.

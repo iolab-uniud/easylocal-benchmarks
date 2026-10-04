@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
-# EasyLocal 3 (v3.3.1) side of the EL3-versus-EL4 benchmark: a standalone
+# EasyLocal 3 (v3.4.0) side of the EL3-versus-EL4 benchmark: a standalone
 # project, built against an extracted EasyLocal 3 release.
 project(easylocal_el3_comparison CXX)
 
-set(EL3_SOURCE_DIR "" CACHE PATH "Path to the extracted EasyLocal 3 (v3.3.1) release")
+set(EL3_SOURCE_DIR "" CACHE PATH "Path to the extracted EasyLocal 3 (v3.4.0) release")
 if(NOT EL3_SOURCE_DIR OR NOT EXISTS "${EL3_SOURCE_DIR}/include/easylocal.hh")
     message(FATAL_ERROR "set EL3_SOURCE_DIR to the extracted EasyLocal 3 release")
 endif()

@@ -10,7 +10,7 @@ EasyLocal documentation.
 | `matrix.json` | the benchmark matrix: problems, instances, algorithms, delta modes, annealing schedules, seeds |
 | `generate.py` | writes the instances and the initial solutions of the matrix |
 | `el4/` | EasyLocal 4 driver (`el4_comparison`), built on the examples of an EasyLocal checkout and on `../common/` |
-| `el3/` | EasyLocal 3 driver (`el3_comparison`), built against `easylocal-legacy` v3.3.1 |
+| `el3/` | EasyLocal 3 driver (`el3_comparison`), built against `easylocal-legacy` v3.4.0 |
 
 Both drivers take the same command line,
 
@@ -68,8 +68,8 @@ modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
   `FirstImprovement`) until a local optimum; simulated annealing with the same
   geometric schedule (EL3 `SimulatedAnnealing`, EL4 `SimulatedAnnealing<Classic>`).
   Each framework runs its own stock algorithm.
-- **Known differences.** EL3 `FirstDescent` scans cyclically from the last
-  move, EL4 `FirstImprovement` restarts from the first one; EL3
+- **Known differences.** EL3 `FirstDescent` starts each scan from a random
+  move, EL4 `FirstImprovement` from the first one; EL3
   `SteepestDescent` breaks ties at random, EL4 `BestImprovement` keeps the
   first best move; simulated annealing uses each framework's random numbers.
   The speed-up is therefore measured per evaluation. For a component without
@@ -86,9 +86,9 @@ From the root of this repository, with an EasyLocal checkout in `easylocal/`
 cmake -S el3_vs_el4/el4 -B build/el4 -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DEASYLOCAL_SOURCE_DIR=$PWD/easylocal
 cmake --build build/el4
-curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.3.1.tar.gz | tar -xz -C build
+curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.4.0.tar.gz | tar -xz -C build
 cmake -S el3_vs_el4/el3 -B build/el3 -G Ninja -DCMAKE_BUILD_TYPE=Release \
-    -DEL3_SOURCE_DIR=$PWD/build/easylocal-legacy-3.3.1
+    -DEL3_SOURCE_DIR=$PWD/build/easylocal-legacy-3.4.0
 cmake --build build/el3
 python3 scripts/el3-vs-el4.py run --el3 build/el3/el3_comparison \
     --el4 build/el4/el4_comparison --output build/results

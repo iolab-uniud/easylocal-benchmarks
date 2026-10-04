@@ -5,7 +5,7 @@ name: Benchmarks
 #
 # One job per responsibility, run one after the other:
 #   prepare      the EasyLocal commit to measure and the label of the results;
-#   el3-vs-el4   EasyLocal 3 (easylocal-legacy v3.3.1) and EasyLocal 4 on the
+#   el3-vs-el4   EasyLocal 3 (easylocal-legacy v3.4.0) and EasyLocal 4 on the
 #                matrix of el3_vs_el4/, in the same job, on the same machine,
 #                alternating run by run and repeating each run three times:
 #                shared runners differ by up to a factor of two between
@@ -120,12 +120,12 @@ jobs:
       - name: Build the drivers
         run: |
           mkdir -p build
-          curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.3.1.tar.gz \
+          curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.4.0.tar.gz \
             | tar -xz -C build
           cmake -S el3_vs_el4/el3 -B build/el3 -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER="$CXX" \
-            -DEL3_SOURCE_DIR="$PWD/build/easylocal-legacy-3.3.1"
+            -DEL3_SOURCE_DIR="$PWD/build/easylocal-legacy-3.4.0"
           cmake --build build/el3 --parallel 2
           cmake -S el3_vs_el4/el4 -B build/el4 -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \

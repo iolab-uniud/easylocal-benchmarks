@@ -55,7 +55,7 @@ INTRO = """\
 # Benchmarks
 
 EasyLocal 4 is measured at every release against EasyLocal 3 (the
-[v3.3.1 tag](https://github.com/iolab-uniud/easylocal-legacy/tree/v3.3.1)
+[v3.4.0 tag](https://github.com/iolab-uniud/easylocal-legacy/tree/v3.4.0)
 of `easylocal-legacy`) and on its own infrastructure. The numbers are produced
 in [easylocal-benchmarks](https://github.com/iolab-uniud/easylocal-benchmarks)
 on a GitHub-hosted runner (Ubuntu, GCC 16, Release); each EasyLocal release
@@ -74,8 +74,8 @@ starts a run.
   overhead (`infrastructure/` of easylocal-benchmarks).
 
 The speed-up compares the times per evaluation, because the two frameworks
-may explore different trajectories: EasyLocal 3 first descent scans
-cyclically from the last move, while EasyLocal 4 restarts from the first;
+may explore different trajectories: EasyLocal 3 first descent starts each
+scan from a random move, while EasyLocal 4 starts from the first;
 EasyLocal 3 steepest descent breaks ties at random; simulated annealing uses
 each framework's random numbers. Costs are means over the seeds.
 """
@@ -114,10 +114,9 @@ COLUMNS = """\
   frameworks may follow different trajectories (see above), so the costs may
   differ even where the speed is the same.
 - **Time**: the seconds of the search alone, median over the repetitions, mean
-  over the seeds. It depends on how many evaluations the trajectory takes: the
-  first descent of EasyLocal 3 scans cyclically from the last move and reaches
-  a local optimum with many fewer evaluations than the restarting scan of
-  EasyLocal 4. Compare times within a framework, and ns/eval across them.
+  over the seeds. It depends on how many evaluations the trajectory takes, and
+  the first descents of the two frameworks, scanning from a random move and
+  from the first one, may take very different numbers of them. Compare times within a framework, and ns/eval across them.
 - **ns/eval**: the time divided by the evaluations of solutions and moves.
 """
 
@@ -442,7 +441,7 @@ def environment(label: str, metadata: dict, directory: pathlib.Path) -> list[str
     commit = next(
         (machine["git_commit"][:7] for _, machine in parts if machine.get("git_commit")), "")
     versions = f"EasyLocal 4 {label}" + (f" ({commit})" if commit else "")
-    versions += f"; EasyLocal 3 {metadata.get('el3_release') or 'v3.3.1'}"
+    versions += f"; EasyLocal 3 {metadata.get('el3_release') or 'v3.4.0'}"
     lines = [
         "",
         "## How it was measured",
@@ -521,12 +520,15 @@ def render(results: pathlib.Path) -> str:
 
     label, (metadata, latest), el3 = versions[-1]
     lines += environment(label, metadata, results / label)
-    lines += ["", f"## EasyLocal 3 versus EasyLocal 4 {label}", ""]
+    el3_tag = (el3[0].get("el3_release") if el3 else None) or ""
+    lines += ["", f"## EasyLocal 3 {el3_tag} versus EasyLocal 4 {label}".replace("  ", " "), ""]
     if el3 is None:
         lines += ["EasyLocal 3 was not measured with this version."]
     else:
         lines += [
-            f"Measured on {metadata['date'][:10]}, both frameworks on the same "
+            f"Measured on {metadata['date'][:10]}, EasyLocal 4 {label} against "
+            f"EasyLocal 3 [{el3_tag}](https://github.com/iolab-uniud/easylocal-legacy/"
+            f"releases/tag/{el3_tag}), both frameworks on the same "
             "machine, alternating run by run. Times are medians over the "
             "repetitions, then means over the seeds; speed-up is the ratio of "
             "the times per evaluation (higher is better for EasyLocal 4).",
@@ -542,14 +544,15 @@ def render(results: pathlib.Path) -> str:
         lines += ["", "### Across versions", "",
                   "Geometric mean of the speed-ups over the algorithms and the delta "
                   "modes, per instance.", "",
-                  "| Version | Date | " + " | ".join(instances) + " | Overall |",
-                  "| --- | --- | " + " | ".join("---:" for _ in instances) + " | ---: |"]
+                  "| Version | EasyLocal 3 | Date | " + " | ".join(instances) + " | Overall |",
+                  "| --- | --- | --- | " + " | ".join("---:" for _ in instances) + " | ---: |"]
         for label_i, metadata_i, results_i, el3_i in reversed(paired):
             ratios = speedups(el3_i[1], results_i)
             per_instance = [geomean(v for k, v in ratios.items() if k[0] == i)
                             for i in instances]
             lines.append(
-                f"| {label_i} | {metadata_i['date'][:10]} | " +
+                f"| {label_i} | {el3_i[0].get('el3_release') or '–'} "
+                f"| {metadata_i['date'][:10]} | " +
                 " | ".join(ratio(r) for r in per_instance) +
                 f" | {ratio(geomean(ratios.values()))} |")
 

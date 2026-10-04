@@ -1,5 +1,5 @@
 {
-  "description": "EasyLocal 3 (easylocal-legacy v3.3.1) versus EasyLocal 4 on the EasyLocal example problems. Changing this file changes the matrix key: EasyLocal 4 results of different keys are not compared, and the EasyLocal 3 baseline is measured again.",
+  "description": "EasyLocal 3 (easylocal-legacy v3.4.0) versus EasyLocal 4 on the EasyLocal example problems. Changing this file changes the matrix key: EasyLocal 4 results of different keys are not compared, and the EasyLocal 3 baseline is measured again.",
   "problems": {
     "tsp": "tour length; 2-opt moves; delta modes: all = the O(1) 2-opt delta (the example's configuration), none = no delta; no mixed mode, as there is a single component",
     "assignment": "1000 * total overload + load imbalance; job reassignment moves; delta modes: all = O(jobs) overload and load-imbalance deltas, mixed = the overload delta only, none = no delta (the example's configuration)",
@@ -43,7 +43,7 @@
       "description": "steepest descent (EL3 SteepestDescent, EL4 BestImprovement), until a local optimum"
     },
     "fd": {
-      "description": "first descent (EL3 FirstDescent, cyclic scan; EL4 FirstImprovement, restarting scan), until a local optimum"
+      "description": "first descent (EL3 FirstDescent, scan from a random move; EL4 FirstImprovement, scan from the first move), until a local optimum"
     },
     "sa": {
       "description": "simulated annealing with a geometric schedule (EL3 SimulatedAnnealing, EL4 SimulatedAnnealing<Classic>)"

@@ -34,7 +34,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 BENCH = ROOT / "el3_vs_el4"
 MATRIX = BENCH / "matrix.json"
-EL3_RELEASE = "v3.3.1"
+EL3_RELEASE = "v3.4.0"
 
 FIELDS = ["framework", "problem", "instance", "algorithm", "delta_mode", "seed", "repetition",
           "initial_cost", "final_cost", "evaluations", "iterations", "seconds"]

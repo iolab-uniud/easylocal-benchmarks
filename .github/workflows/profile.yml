@@ -67,7 +67,7 @@ jobs:
       - name: Build the drivers
         run: |
           mkdir -p build
-          curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.3.1.tar.gz \
+          curl -fsSL https://github.com/iolab-uniud/easylocal-legacy/archive/refs/tags/v3.4.0.tar.gz \
             | tar -xz -C build
           flags="-g -fno-omit-frame-pointer"
           for cc in gcc:/usr/bin/g++-16 clang:/usr/bin/clang++-22; do
@@ -75,7 +75,7 @@ jobs:
             cmake -S el3_vs_el4/el3 -B "build/el3-$name" -G Ninja \
               -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="$cxx" \
               -DCMAKE_CXX_FLAGS="$flags" \
-              -DEL3_SOURCE_DIR="$PWD/build/easylocal-legacy-3.3.1"
+              -DEL3_SOURCE_DIR="$PWD/build/easylocal-legacy-3.4.0"
             cmake --build "build/el3-$name"
             cmake -S el3_vs_el4/el4 -B "build/el4-$name" -G Ninja \
               -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="$cxx" \
