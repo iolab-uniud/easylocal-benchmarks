@@ -68,9 +68,11 @@ solution.
   machines or timeslots (assignment, exam). An empty neighborhood throws `EmptyNeighborhood`.
   `FeasibleMove` is the EasyLocal 4 `is_valid`.
 - Algorithms: `sd` is `SteepestDescent`; `fd` is `FirstDescent`; `sa` is `SimulatedAnnealing` with
-  `start_temperature`, `min_temperature`, `cooling_rate` and
-  `neighbors_sampled` set (no computed start temperature, no accepted-ratio
-  cut-off, unlimited evaluations).
+  `start_temperature`, `min_temperature` and `cooling_rate` set, and
+  `max_evaluations` the samples per temperature times the temperature levels,
+  from which EasyLocal 3 derives the same samples per level (3.4 does not
+  accept `max_neighbors_sampled` alone); no computed start temperature, no
+  accepted-ratio cut-off. The descents have an unlimited `max_evaluations`.
 
 ## Differences
 
