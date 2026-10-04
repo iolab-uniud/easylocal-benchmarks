@@ -61,8 +61,9 @@ solution.
   4 also evaluates a copy, but reuses the cached value of the current
   solution, so EasyLocal 3 evaluates these components twice per move instead
   of once.
-- `FirstMove`/`NextMove` enumerate in the order of the EasyLocal 4
-  `first_move`/`next_move`; `RandomMove` draws uniformly as the EasyLocal 4
+- `FirstMove`/`NextMove` enumerate in the order of the EasyLocal 4 `moves()`,
+  a generator (`easylocal::generator`, written with `co_yield`) since
+  4.0.0-alpha.1, a `first_move`/`next_move` cursor before; `RandomMove` draws uniformly as the EasyLocal 4
   `random_move`, with `Random::Uniform`: two edges redrawn until they form a
   valid 2-opt move (TSP), or an ordinal over the jobs or exams and their other
   machines or timeslots (assignment, exam). An empty neighborhood throws `EmptyNeighborhood`.

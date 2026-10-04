@@ -34,6 +34,7 @@
 #include "exam_timetabling/cost_deltas.hpp"
 #include "exam_timetabling/neighborhood_explorer.hpp"
 #include "tsp/neighborhood_explorer.hpp"
+#include "tsp/tour_length_component.hpp"
 #include "tsp/tour_length_delta.hpp"
 
 #include "assignment_deltas.hpp"
@@ -193,15 +194,13 @@ void run_tsp(const Options& options)
     tsp::Tour initial;
     initial.tour = read_values(options.initial);
     const auto sm = el::solution_manager<tsp::TspSolutionManager>()
-                  | el::cost::apply(tsp::TourLengthCost{},
-                                    el::component<tsp::TourLengthComponent>());
+                  | el::component<tsp::TourLengthComponent>();
     const auto neighborhood = el::neighborhood<tsp::TwoOptNeighborhoodExplorer>();
     const auto& mode = options.delta_mode;
     if (mode == "all")
         run(options, input, initial, sm,
             neighborhood
-                | el::delta<tsp::TourLengthComponent,
-                            tsp::TwoOptTourLengthDeltaEvaluator>());
+                | el::delta<tsp::TourLengthComponent, tsp::TwoOptTourLengthDelta>());
     else if (mode == "none")
         run(options, input, initial, sm, neighborhood);
     else

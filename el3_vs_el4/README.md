@@ -37,6 +37,10 @@ modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
     by job and then destination machine.
   - *Exam Timetabling*: student conflicts, consecutive exams and timeslot
     load; exam moves, by exam and then destination timeslot.
+
+  The EasyLocal 4 examples enumerate their moves with a generator (`moves()`,
+  written with `co_yield`, since EasyLocal 4.0.0-alpha.1), the EasyLocal 3
+  ports with the `FirstMove`/`NextMove` cursor, in the same order.
 - **Delta modes.** Each problem is measured with delta evaluations for all
   its cost components (`all`), for some of them (`mixed`) and for none
   (`none`, every move applied to a copy of the solution and its cost
