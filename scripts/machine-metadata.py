@@ -2,11 +2,13 @@
 """Write the machine and toolchain of a benchmark job as key,value CSV.
 
     machine-metadata.py --output FILE --repo-root EASYLOCAL_CHECKOUT
-                        [--target-work N --trials N --seed N]
+                        [--target-work N --trials N --seed N] [--machine-only]
 
 Every part of the Benchmarks workflow runs in a job of its own, possibly on a
 different machine, and records it with this script; the parameters of the
-neighborhood benchmarks are written when given.
+neighborhood benchmarks are written when given. --machine-only leaves out the
+compiler (a job that builds with several toolchains records each with the
+driver's own --describe).
 """
 
 from __future__ import annotations
@@ -79,14 +81,22 @@ def os_description() -> str:
     return platform.platform()
 
 
+def powershell(expression: str) -> str:
+    return command_output(["powershell", "-NoProfile", "-Command", expression])
+
+
 def hardware_model() -> str:
     if platform.system() == "Darwin":
-        return command_output(["sysctl", "-n", "hw.model"])
+        cpu = command_output(["sysctl", "-n", "machdep.cpu.brand_string"])
+        model = command_output(["sysctl", "-n", "hw.model"])
+        return f"{cpu} ({model})" if cpu != "unavailable" else model
     if platform.system() == "Linux":
         output = command_output(["lscpu"])
         for line in output.splitlines():
             if line.startswith("Model name:"):
                 return line.split(":", 1)[1].strip()
+    if platform.system() == "Windows":
+        return first_line(powershell("(Get-CimInstance Win32_Processor).Name"))
     return "unknown"
 
 
@@ -149,6 +159,13 @@ def virtual_machine() -> list[tuple[str, str]]:
             value = command_output(["sysctl", "-n", name])
             if value.isdigit():
                 rows.append((key, f"{int(value) // 1024} KiB"))
+    elif platform.system() == "Windows":
+        memory = powershell("(Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory")
+        if memory.isdigit():
+            rows.append(("memory", f"{int(memory) / 1024**3:.1f} GiB"))
+        model = powershell("(Get-CimInstance Win32_ComputerSystem).Model")
+        if model not in ("", "unavailable"):
+            rows.append(("hypervisor", model))
     rows.append(("vm_size", azure_vm_size()))
     return rows
 
@@ -182,22 +199,32 @@ def main() -> int:
     parser.add_argument("--target-work")
     parser.add_argument("--trials")
     parser.add_argument("--seed")
+    parser.add_argument("--machine-only", action="store_true")
     args = parser.parse_args()
 
-    compiler = resolve_compiler()
-    cxxflags_text = os.environ.get("CXXFLAGS", "")
-    cxxflags = shlex.split(cxxflags_text)
-    stdlib, stdlib_version = stdlib_metadata(compiler, cxxflags)
     git_commit, git_dirty = git_metadata(args.repo_root)
-
-    compiler_version = first_line(command_output([compiler, "--version"]))
-    compiler_target = first_line(command_output([compiler, "-dumpmachine"]))
     cmake_version = first_line(command_output(["cmake", "--version"]))
     ninja_version = first_line(command_output(["ninja", "--version"]))
 
+    if args.machine_only:
+        compiler_rows = []
+    else:
+        compiler = resolve_compiler()
+        cxxflags_text = os.environ.get("CXXFLAGS", "")
+        cxxflags = shlex.split(cxxflags_text)
+        stdlib, stdlib_version = stdlib_metadata(compiler, cxxflags)
+        compiler_rows = [
+            ("compiler", compiler),
+            ("compiler_version", first_line(command_output([compiler, "--version"]))),
+            ("compiler_target", first_line(command_output([compiler, "-dumpmachine"]))),
+            ("cxxflags", cxxflags_text),
+            ("stdlib", stdlib),
+            ("stdlib_version", stdlib_version),
+        ]
+
     rows = [
         ("schema_version", "1"),
-        ("toolchain", os.environ.get("TOOLCHAIN", "local")),
+        ("toolchain", "several" if args.machine_only else os.environ.get("TOOLCHAIN", "local")),
         ("os", platform.system()),
         ("os_release", platform.release()),
         ("os_description", os_description()),
@@ -207,12 +234,7 @@ def main() -> int:
         ("hardware_model", hardware_model()),
         ("logical_cpus", str(os.cpu_count() or "unknown")),
         *virtual_machine(),
-        ("compiler", compiler),
-        ("compiler_version", compiler_version),
-        ("compiler_target", compiler_target),
-        ("cxxflags", cxxflags_text),
-        ("stdlib", stdlib),
-        ("stdlib_version", stdlib_version),
+        *compiler_rows,
         ("cmake", cmake_version),
         ("ninja", ninja_version),
         ("sdkroot", os.environ.get("SDKROOT", "")),

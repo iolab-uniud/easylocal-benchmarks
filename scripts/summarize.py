@@ -9,6 +9,8 @@ Benchmarks workflow, one directory per measured EasyLocal version:
     <version>/el3/{results.csv,metadata.json}   EasyLocal 3, same job
     <version>/el4/{results.csv,metadata.json}   EasyLocal 4
     <version>/infrastructure/{search,traversal,trace}.csv
+    <version>/platforms/<platform>/metadata.csv                 the machine
+    <version>/platforms/<platform>/<toolchain>/{results.csv,metadata.json,toolchain.csv}
 
 The two frameworks of a version are measured on the same machine, so each
 version is compared with its own EasyLocal 3 measurement.
@@ -72,6 +74,10 @@ starts a run.
   machine.
 - **Infrastructure.** Neighborhood traversal, runner-level search and tracing
   overhead (`infrastructure/` of easylocal-benchmarks).
+- **Compilers and architectures.** The EasyLocal 4 side of the comparison
+  built by several toolchains, on Linux x86_64 and ARM64, macOS ARM64 and
+  Windows x86_64: each platform in a job of its own, its toolchains
+  alternating run by run.
 
 The speed-up compares the times per evaluation, because the two frameworks
 may explore different trajectories: EasyLocal 3 first descent starts each
@@ -121,6 +127,16 @@ COLUMNS = """\
 """
 
 INFRASTRUCTURE_LEGEND = ROOT / "infrastructure" / "benchmarks.json"
+
+# The platforms of the platforms benchmark, in the order of the page, with
+# the toolchain the others of the same platform are compared with.
+PLATFORMS = {
+    "linux-x86_64": ("Linux x86_64", "gcc16"),
+    "linux-arm64": ("Linux ARM64", "gcc16"),
+    "macos-arm64": ("macOS ARM64", "appleclang"),
+    "windows-x86_64": ("Windows x86_64", "clang-cl"),
+}
+TOOLCHAINS = ["gcc16", "clang23-libstdcxx", "clang23-libcxx", "appleclang", "clang-cl", "msvc"]
 
 NO_RESULTS = """
 No results have been published yet: they appear after the first run of the
@@ -493,6 +509,114 @@ def environment(label: str, metadata: dict, directory: pathlib.Path) -> list[str
     return lines + ["", method, "", DISCLAIMER.rstrip()]
 
 
+def platform_order(name: str):
+    return (list(PLATFORMS).index(name) if name in PLATFORMS else len(PLATFORMS), name)
+
+
+def toolchain_order(name: str):
+    return (TOOLCHAINS.index(name) if name in TOOLCHAINS else len(TOOLCHAINS), name)
+
+
+def platforms(directory: pathlib.Path, label: str) -> list[str]:
+    """The compilers-and-architectures section: the machines, then one table
+    per platform with the ns/eval of each toolchain."""
+    current = el3_vs_el4.matrix_key()
+    measured = {}
+    for platform_dir in sorted(directory.glob("*/"), key=lambda p: platform_order(p.name)):
+        toolchains = {}
+        for toolchain_dir in platform_dir.glob("*/"):
+            metadata_path = toolchain_dir / "metadata.json"
+            if not metadata_path.exists():
+                continue
+            metadata = read_json(metadata_path)
+            if metadata.get("matrix_key") != current:
+                continue
+            toolchains[toolchain_dir.name] = (
+                metadata, aggregate(read_rows(toolchain_dir / "results.csv")),
+                read_key_values(toolchain_dir / "toolchain.csv"))
+        if toolchains:
+            measured[platform_dir.name] = (
+                read_key_values(platform_dir / "metadata.csv"),
+                dict(sorted(toolchains.items(), key=lambda t: toolchain_order(t[0]))))
+    if not measured:
+        return []
+
+    def title(name: str) -> str:
+        return PLATFORMS.get(name, (name, None))[0]
+
+    modes = sorted({key[2] for _, toolchains in measured.values()
+                    for _, results, _ in toolchains.values() for key in results},
+                   key=mode_order)
+    lines = [
+        "", f"## Compilers and architectures of EasyLocal 4 {label}", "",
+        "The EasyLocal 4 driver of the comparison above, built by several "
+        "toolchains and run on the same instances, algorithms and seeds, in delta "
+        f"mode {', '.join(f'`{m}`' for m in modes)}. Each platform runs in a job of "
+        "its own, on its own machine, and its toolchains alternate run by run, so "
+        "the times of one platform are comparable with each other; the platforms "
+        "are different (shared) machines, so their absolute times are not. The "
+        "descents follow the same trajectory with every toolchain; simulated "
+        "annealing may not, as the standard libraries draw random numbers "
+        "differently, hence ns/eval rather than times.",
+    ]
+    rows = [(title(name), machine_rows(machine)) for name, (machine, _) in measured.items()]
+    keys = list(dict.fromkeys(key for _, row in rows for key in row))
+    lines += [
+        "",
+        "| | " + " | ".join(name for name, _ in rows) + " |",
+        "| --- | " + " | ".join("---" for _ in rows) + " |",
+        *[f"| {key} | " + " | ".join(row.get(key, "–") for _, row in rows) + " |"
+          for key in keys],
+    ]
+    for name, (machine, toolchains) in measured.items():
+        reference = PLATFORMS.get(name, (None, None))[1]
+        if reference not in toolchains:
+            reference = next(iter(toolchains))
+        date = next(iter(toolchains.values()))[0]["date"][:10]
+        lines += ["", f"### {title(name)}", "",
+                  f"Measured on {date}.", "",
+                  "| Toolchain | Compiler | Standard library | Flags |",
+                  "| --- | --- | --- | --- |"]
+        for toolchain, (_, _, described) in toolchains.items():
+            compiler = described.get("compiler", "")
+            if described.get("compiler_version"):
+                compiler += f" {described['compiler_version']}"
+            stdlib = described.get("stdlib", "")
+            if described.get("stdlib_version"):
+                stdlib += f" {described['stdlib_version']}"
+            flags = described.get("cxxflags", "")
+            lines.append(f"| `{toolchain}` | {compiler} | {stdlib} | "
+                         f"{f'`{flags}`' if flags else '–'} |")
+        lines += ["",
+                  "| Instance | Algorithm" + (" | Deltas" if len(modes) > 1 else "")
+                  + " | " + " | ".join(f"`{t}` (ns/eval)" for t in toolchains) + " |",
+                  "| --- | ---" + (" | ---" if len(modes) > 1 else "")
+                  + " | " + " | ".join("---:" for _ in toolchains) + " |"]
+        keys = sorted({key for _, results, _ in toolchains.values() for key in results},
+                      key=lambda k: (k[0], list(ALGORITHMS).index(k[1]), mode_order(k[2])))
+        for key in keys:
+            values = [results.get(key, {}).get("ns_per_evaluation", math.nan)
+                      for _, results, _ in toolchains.values()]
+            fastest = min((v for v in values if not math.isnan(v)), default=math.nan)
+            cells = ["–" if math.isnan(v) else (f"**{v:.1f}**" if v == fastest else f"{v:.1f}")
+                     for v in values]
+            lines.append(f"| {key[0]} | {ALGORITHMS.get(key[1], key[1])}"
+                         + (f" | {key[2]}" if len(modes) > 1 else "")
+                         + " | " + " | ".join(cells) + " |")
+        relative = []
+        for toolchain, (_, results, _) in toolchains.items():
+            if toolchain == reference:
+                continue
+            ratios = [results[k]["ns_per_evaluation"]
+                      / toolchains[reference][1][k]["ns_per_evaluation"]
+                      for k in results if k in toolchains[reference][1]]
+            relative.append(f"`{toolchain}` {geomean(ratios):.2f}×")
+        if relative:
+            lines += ["", f"Time per evaluation relative to `{reference}`, geometric mean "
+                      f"over the rows (below 1 is faster): {', '.join(relative)}."]
+    return lines
+
+
 def render(results: pathlib.Path) -> str:
     current = el3_vs_el4.matrix_key()
 
@@ -560,6 +684,9 @@ def render(results: pathlib.Path) -> str:
     infra = infrastructure(infrastructure_dir) if infrastructure_dir.exists() else []
     if infra:
         lines += ["", f"## Infrastructure of EasyLocal 4 {label}", *infra]
+    platforms_dir = results / label / "platforms"
+    if platforms_dir.exists():
+        lines += platforms(platforms_dir, label)
     return "\n".join(lines) + "\n"
 
 

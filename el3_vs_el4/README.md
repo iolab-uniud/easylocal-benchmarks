@@ -21,7 +21,10 @@ Both drivers take the same command line,
 ```
 
 and print one line, `initial_cost,final_cost,evaluations,iterations,seconds`,
-where `seconds` times the search only. `--delta-mode` is required (the
+where `seconds` times the search only. The EasyLocal 4 driver also answers
+`--describe` with the compiler, standard library and flags it was built with,
+as `key,value` lines: the platforms benchmark (`scripts/platforms.py`) records
+them next to its results. `--delta-mode` is required (the
 modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
 `delta_mode` column of `results.csv`.
 

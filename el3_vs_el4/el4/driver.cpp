@@ -8,6 +8,9 @@
 //
 // Prints one line, initial_cost,final_cost,evaluations,iterations,seconds;
 // seconds time the search only, not reading the files or building services.
+// `el4_comparison --describe` prints instead, as key,value lines, the compiler,
+// standard library and flags the driver was built with (the platforms
+// benchmark records them next to its results).
 // The models are the examples' own (EASYLOCAL_SOURCE_DIR/examples); the costs
 // are the weighted sums of the EasyLocal 3 ports, so that both frameworks
 // optimize the same function.
@@ -50,9 +53,56 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <version>
+
+#ifndef EL4_CXXFLAGS
+#define EL4_CXXFLAGS ""
+#endif
 
 namespace
 {
+
+// Stringifies a macro's value (its expansion, not its name).
+#define EL4_STRINGIFY_VALUE(x) EL4_STRINGIFY(x)
+#define EL4_STRINGIFY(x) #x
+
+// The toolchain of this binary, from the predefined macros: what CMake chose
+// may differ from what the compiler reports about itself.
+void describe()
+{
+#if defined(__clang__) && defined(__apple_build_version__)
+    std::cout << "compiler,appleclang\n"
+              << "compiler_version," << __clang_version__ << '\n';
+#elif defined(__clang__) && defined(_MSC_VER)
+    std::cout << "compiler,clang-cl\n"
+              << "compiler_version," << __clang_version__ << '\n';
+#elif defined(__clang__)
+    std::cout << "compiler,clang\n"
+              << "compiler_version," << __clang_version__ << '\n';
+#elif defined(__GNUC__)
+    std::cout << "compiler,gcc\n"
+              << "compiler_version," << __VERSION__ << '\n';
+#elif defined(_MSC_VER)
+    std::cout << "compiler,msvc\n"
+              << "compiler_version," << EL4_STRINGIFY_VALUE(_MSC_FULL_VER) << '\n';
+#else
+    std::cout << "compiler,unknown\ncompiler_version,unknown\n";
+#endif
+#if defined(_LIBCPP_VERSION)
+    std::cout << "stdlib,libc++\n"
+              << "stdlib_version," << EL4_STRINGIFY_VALUE(_LIBCPP_VERSION) << '\n';
+#elif defined(__GLIBCXX__)
+    std::cout << "stdlib,libstdc++\n"
+              << "stdlib_version," << EL4_STRINGIFY_VALUE(__GLIBCXX__) << '\n';
+#elif defined(_MSVC_STL_VERSION)
+    std::cout << "stdlib,msvc-stl\n"
+              << "stdlib_version," << EL4_STRINGIFY_VALUE(_MSVC_STL_UPDATE) << '\n';
+#else
+    std::cout << "stdlib,unknown\nstdlib_version,unknown\n";
+#endif
+    std::cout << "cxxflags," << EL4_CXXFLAGS << '\n'
+              << "cpp_standard," << __cplusplus << '\n';
+}
 
 namespace el = easylocal;
 namespace exam = exam_timetabling;
@@ -278,6 +328,11 @@ int main(int argc, char* argv[])
 {
     try
     {
+        if (argc == 2 && std::string{argv[1]} == "--describe")
+        {
+            describe();
+            return 0;
+        }
         const auto options = parse(argc, argv);
         if (options.problem == "tsp")
             run_tsp(options);

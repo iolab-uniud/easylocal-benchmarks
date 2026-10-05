@@ -12,7 +12,7 @@ EasyLocal documentation.
 | [`el3_vs_el4/`](el3_vs_el4/README.md) | the EasyLocal example problems written in both frameworks, the benchmark matrix and its instance generator |
 | [`infrastructure/`](infrastructure/README.md) | neighborhood traversal, runner-level search and tracing overhead of EasyLocal |
 | `common/` | EasyLocal 4 code the examples do not provide, shared by the benchmarks |
-| `scripts/` | `el3-vs-el4.py` runs the matrix, `run-neighborhood-benchmarks.sh` and `run-trace-benchmarks.sh` the infrastructure benchmarks, `machine-metadata.py` records the machine of a job (with what the guest sees of its virtual machine), `cpu-time.py` the CPU steal around each part, `summarize.py` writes the results page |
+| `scripts/` | `el3-vs-el4.py` runs the matrix, `platforms.py` runs it with the EasyLocal 4 drivers of several toolchains (`toolchain-env.sh` installs them), `run-neighborhood-benchmarks.sh` and `run-trace-benchmarks.sh` the infrastructure benchmarks, `machine-metadata.py` records the machine of a job (with what the guest sees of its virtual machine), `cpu-time.py` the CPU steal around each part, `summarize.py` writes the results page |
 | `results/` | the measured results, committed by CI |
 
 ## How it runs
@@ -31,7 +31,16 @@ EasyLocal CI sends a `repository_dispatch` with the release tag) or by hand:
    - **Neighborhood**: traversal and runner-level search
      (`scripts/run-neighborhood-benchmarks.sh`);
    - **Trace**: tracing overhead and ELTR cost encoding
-     (`scripts/run-trace-benchmarks.sh`).
+     (`scripts/run-trace-benchmarks.sh`);
+   - **Platforms**: the EasyLocal 4 driver of the matrix built by several
+     toolchains, one job per platform, in parallel with the parts above:
+     Linux x86_64 and ARM64 with GCC 16, Clang 23 with libstdc++ and with
+     libc++; macOS ARM64 with AppleClang; Windows x86_64 with clang-cl and
+     MSVC (`scripts/platforms.py`, delta mode `all`). The toolchains of a
+     platform alternate run by run on the same machine, so they are
+     comparable with each other; the platforms are not, being different
+     machines. A toolchain that does not build, or a platform that fails, is
+     left out of the results.
 3. **Publish** merges the parts into `results/<version>/`, commits them here
    and rebuilds the EasyLocal documentation, so that its Benchmarks page shows
    them. Results of different matrices (`scripts/el3-vs-el4.py key`) are not
@@ -43,7 +52,8 @@ others. It is meant to measure again a part of a version already measured
 (the same `easylocal_ref`, or the same `label`): the Benchmarks page shows the
 latest version that has the EasyLocal 3 versus EasyLocal 4 comparison.
 
-All runs use a GitHub-hosted Ubuntu runner with GCC 16 in Release mode. Times
+The comparison and the infrastructure parts use a GitHub-hosted Ubuntu
+runner with GCC 16 in Release mode (the platforms part, the runners above). Times
 on shared runners vary between runs: compare ratios and trends. The manual
 **Neighborhood Benchmarks** and **Trace Microbenchmarks** workflows measure the
 infrastructure of any EasyLocal ref across toolchains (Linux GCC and Clang,

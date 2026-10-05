@@ -13,6 +13,10 @@ name: Benchmarks
 #                computed between results measured together;
 #   neighborhood neighborhood traversal and runner-level search;
 #   trace        tracing overhead and ELTR cost encoding;
+#   platforms    the EasyLocal 4 driver of the matrix built by several
+#                toolchains, one job per platform (Linux x86_64 and ARM64,
+#                macOS ARM64, Windows x86_64), its toolchains alternating run
+#                by run; a platform that fails is left out of the results;
 #   publish      merges the parts into results/<label>/, commits them and
 #                rebuilds the EasyLocal documentation.
 # Each part records the machine it ran on. A manual run may measure one part
@@ -37,7 +41,7 @@ on:
       parts:
         description: 'Parts to measure'
         type: choice
-        options: [all, el3-vs-el4, neighborhood, trace]
+        options: [all, el3-vs-el4, neighborhood, trace, platforms]
         default: all
       publish:
         description: 'Commit the results'
@@ -224,9 +228,143 @@ jobs:
           retention-days: 30
           path: build/results/
 
+  platforms:
+    name: Platforms / ${{ matrix.platform }}
+    needs: prepare
+    if: >-
+      ${{ !cancelled() && needs.prepare.result == 'success'
+          && contains(fromJSON('["all", "platforms"]'), inputs.parts || 'all') }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    # A platform that fails (a toolchain that does not build, a runner that
+    # is not available) is left out; the others are published.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            runner: ubuntu-26.04
+            toolchains: gcc16 clang23-libstdcxx clang23-libcxx
+          - platform: linux-arm64
+            runner: ubuntu-26.04-arm
+            toolchains: gcc16 clang23-libstdcxx clang23-libcxx
+          - platform: macos-arm64
+            runner: macos-26
+            toolchains: appleclang
+          - platform: windows-x86_64
+            runner: windows-2025
+            toolchains: clang-cl msvc
+    env:
+      LABEL: ${{ needs.prepare.outputs.label }}
+      PLATFORM: ${{ matrix.platform }}
+      TOOLCHAINS: ${{ matrix.toolchains }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout EasyLocal
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: iolab-uniud/easylocal
+          ref: ${{ needs.prepare.outputs.commit }}
+          path: easylocal
+          persist-credentials: false
+
+      - name: Install the build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo env DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y --no-install-recommends cmake ninja-build
+
+      - name: Install the build tools (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          command -v cmake >/dev/null || brew install cmake
+          command -v ninja >/dev/null || brew install ninja
+
+      - name: Provision clang-cl and the MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # The newest LLVM (clang-cl) and Ninja; the Microsoft STL, Windows
+          # SDK, linker and cl.exe come from the Visual Studio developer
+          # environment, exported to the next steps.
+          choco upgrade llvm ninja -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
+            if ($_ -match '^([^=]+)=(.*)$') {
+              "$($Matches[1])=$($Matches[2])" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+            }
+          }
+
+      - name: Build the drivers
+        run: |
+          # One driver per toolchain; a toolchain that does not build is
+          # left out with a warning.
+          drivers=()
+          for toolchain in $TOOLCHAINS; do
+            SDKROOT=
+            if [ "$RUNNER_OS" = Windows ]; then
+              case "$toolchain" in
+                clang-cl) CXX="C:/Program Files/LLVM/bin/clang-cl.exe" ;;
+                msvc) CXX=cl ;;
+                *) echo "::error::unknown Windows toolchain $toolchain"; exit 1 ;;
+              esac
+              CXXFLAGS=
+              exe=.exe
+            else
+              eval "$(scripts/toolchain-env.sh "$toolchain")"
+              exe=
+            fi
+            if cmake -S el3_vs_el4/el4 -B "build/$toolchain" -G Ninja \
+                 -DCMAKE_BUILD_TYPE=Release \
+                 -DCMAKE_CXX_COMPILER="$CXX" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+                 ${SDKROOT:+-DCMAKE_OSX_SYSROOT="$SDKROOT"} \
+                 -DEASYLOCAL_SOURCE_DIR="$PWD/easylocal" \
+               && cmake --build "build/$toolchain" --parallel 2; then
+              drivers+=("--driver" "$toolchain=$PWD/build/$toolchain/el4_comparison$exe")
+              "build/$toolchain/el4_comparison$exe" --describe
+            else
+              echo "::warning::$toolchain does not build EasyLocal $LABEL on $PLATFORM: left out"
+            fi
+          done
+          if [ "${#drivers[@]}" -eq 0 ]; then
+            echo "::error::no toolchain builds EasyLocal $LABEL on $PLATFORM"
+            exit 1
+          fi
+          echo "DRIVERS=${drivers[*]}" >> "$GITHUB_ENV"
+
+      - name: Run the matrix
+        run: |
+          out="build/results/$LABEL/platforms/$PLATFORM"
+          python3 scripts/machine-metadata.py --machine-only \
+            --output "$out/metadata.csv" --repo-root easylocal
+          python3 scripts/cpu-time.py start build/cpu-time.json
+          # shellcheck disable=SC2086 # DRIVERS is a list of --driver options
+          python3 scripts/platforms.py run --platform "$PLATFORM" $DRIVERS \
+            --output "$out" --repetitions 3 --label "$LABEL"
+          python3 scripts/cpu-time.py stop build/cpu-time.json "$out/metadata.csv"
+          rm -rf "$out/instances"
+
+      - name: Upload the results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: results-platforms-${{ matrix.platform }}
+          retention-days: 30
+          path: build/results/
+
   publish:
     name: Publish
-    needs: [prepare, el3-vs-el4, neighborhood, trace]
+    needs: [prepare, el3-vs-el4, neighborhood, trace, platforms]
     # When every selected part succeeded.
     if: >-
       ${{ !cancelled() && needs.prepare.result == 'success'
