@@ -31,6 +31,11 @@
 // The examples of the EasyLocal checkout (EASYLOCAL_SOURCE_DIR), included by
 // path because the three use the same file names.
 #include "assignment/cost_components.hpp"
+#if __has_include("assignment/instance_io.hpp")
+// Up to v4.0.0-alpha.1 the assignment example read its instance with a free
+// read_input; since EasyLocal 028e574 AssignmentInstance::read does.
+#include "assignment/instance_io.hpp"
+#endif
 #include "assignment/neighborhood_explorer.hpp"
 #include "exam_timetabling/cost_components.hpp"
 #include "exam_timetabling/cost_deltas.hpp"

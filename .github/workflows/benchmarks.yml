@@ -325,9 +325,12 @@ jobs:
               eval "$(scripts/toolchain-env.sh "$toolchain")"
               exe=
             fi
+            # CXXFLAGS from the environment: CMake adds them to its own
+            # defaults (/EHsc with clang-cl and MSVC), which -DCMAKE_CXX_FLAGS
+            # would replace.
+            export CXX CXXFLAGS
             if cmake -S el3_vs_el4/el4 -B "build/$toolchain" -G Ninja \
                  -DCMAKE_BUILD_TYPE=Release \
-                 -DCMAKE_CXX_COMPILER="$CXX" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
                  ${SDKROOT:+-DCMAKE_OSX_SYSROOT="$SDKROOT"} \
                  -DEASYLOCAL_SOURCE_DIR="$PWD/easylocal" \
                && cmake --build "build/$toolchain" --parallel 2; then
@@ -390,6 +393,10 @@ jobs:
       - name: Add them to results/
         run: |
           # The parts measured replace their files; the others stay.
+          if [ ! -d "build/results/$LABEL" ]; then
+            echo "::error::no part produced results for $LABEL"
+            exit 1
+          fi
           mkdir -p "results/$LABEL"
           cp -R "build/results/$LABEL/." "results/$LABEL/"
           python3 scripts/summarize.py results --output build/benchmarks.md
