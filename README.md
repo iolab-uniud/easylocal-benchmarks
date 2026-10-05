@@ -12,7 +12,7 @@ EasyLocal documentation.
 | [`el3_vs_el4/`](el3_vs_el4/README.md) | the EasyLocal example problems written in both frameworks, the benchmark matrix and its instance generator |
 | [`infrastructure/`](infrastructure/README.md) | neighborhood traversal, runner-level search and tracing overhead of EasyLocal |
 | `common/` | EasyLocal 4 code the examples do not provide, shared by the benchmarks |
-| `scripts/` | `el3-vs-el4.py` runs the matrix, `platforms.py` runs it with the EasyLocal 4 drivers of several toolchains (`toolchain-env.sh` installs them), `run-neighborhood-benchmarks.sh` and `run-trace-benchmarks.sh` the infrastructure benchmarks, `machine-metadata.py` records the machine of a job (with what the guest sees of its virtual machine), `cpu-time.py` the CPU steal around each part, `summarize.py` writes the results page |
+| `scripts/` | `el3-vs-el4.py` runs the matrix, `platforms.py` runs it with the EasyLocal 4 drivers of several toolchains (`toolchain-env.sh` installs them), `run-neighborhood-benchmarks.sh` and `run-trace-benchmarks.sh` the infrastructure benchmarks, `machine-metadata.py` records the machine of a job (with what the guest sees of its virtual machine), `cpu-time.py` the CPU steal around each part, `summarize.py` writes the results page, its charts as Plotly figures (JSON in the page, plotly.js from its CDN) |
 | `results/` | the measured results, committed by CI |
 
 ## How it runs

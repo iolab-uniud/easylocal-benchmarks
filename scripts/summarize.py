@@ -16,6 +16,8 @@ The two frameworks of a version are measured on the same machine, so each
 version is compared with its own EasyLocal 3 measurement.
 
 The EasyLocal documentation renders its Benchmarks page with this script.
+The charts are Plotly figures written as JSON next to their tables; the page
+loads plotly.js from its CDN when it has charts.
 
 The legends come from the benchmarks themselves: the instances and algorithms
 of the comparison from el3_vs_el4/matrix.json, the setups and variants of the
@@ -240,6 +242,135 @@ def comparison_legend(matrix) -> list[str]:
     ]
 
 
+
+# The charts are Plotly figures: summarize.py writes each one's data and
+# layout as JSON in the page (standard library only), and the loader below,
+# written once at the end of the page, fetches plotly.js from its CDN, draws
+# them and follows the light or dark scheme of the documentation. The series
+# colors are a colorblind-safe quadruple (blue, orange, aqua, yellow); every
+# chart stands next to the table with the same numbers.
+SERIES_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
+PLOTLY_URL = "https://cdn.plot.ly/plotly-basic-4.1.1.min.js"
+
+CHART_LOADER = """\
+<script>
+(function () {
+  function scheme() {
+    var dark = document.body.getAttribute("data-md-color-scheme") === "slate";
+    var text = getComputedStyle(document.body).color;
+    var grid = dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)";
+    return { font: { color: text, family: "inherit" }, grid: grid };
+  }
+  function draw() {
+    var theme = scheme();
+    document.querySelectorAll(".benchmark-chart").forEach(function (element) {
+      var figure = JSON.parse(element.getAttribute("data-figure"));
+      var layout = figure.layout;
+      layout.paper_bgcolor = "rgba(0,0,0,0)";
+      layout.plot_bgcolor = "rgba(0,0,0,0)";
+      layout.font = theme.font;
+      ["xaxis", "yaxis"].forEach(function (axis) {
+        layout[axis] = layout[axis] || {};
+        layout[axis].gridcolor = theme.grid;
+        layout[axis].zerolinecolor = theme.grid;
+      });
+      (layout.shapes || []).forEach(function (shape) {
+        shape.line = shape.line || {};
+        shape.line.color = theme.font.color;
+      });
+      Plotly.react(element, figure.data, layout,
+                   { responsive: true, displaylogo: false,
+                     modeBarButtonsToRemove: ["select2d", "lasso2d", "autoScale2d"] });
+    });
+  }
+  if (!document.querySelector(".benchmark-chart")) { return; }
+  var script = document.createElement("script");
+  script.src = "%s";
+  script.onload = function () {
+    draw();
+    new MutationObserver(draw).observe(
+      document.body, { attributes: true, attributeFilter: ["data-md-color-scheme"] });
+  };
+  document.head.appendChild(script);
+})();
+</script>
+""" % PLOTLY_URL
+
+
+def chart(title: str, figure: dict, height: int) -> list[str]:
+    """The HTML of a figure, under its caption: a div the loader draws into,
+    with the figure as JSON."""
+    encoded = json.dumps(figure, separators=(",", ":")).replace("&", "&amp;").replace(
+        "'", "&#39;").replace("<", "&lt;")
+    return ["", f"*{title}.*", "",
+            f'<div class="benchmark-chart" style="height: {height}px" '
+            f"data-figure='{encoded}'></div>", ""]
+
+
+def bar_chart(title: str, rows, series, unit: str, reference: float | None = None,
+              value_format=lambda v: f"{v:.2f}") -> list[str]:
+    """A horizontal grouped bar chart: one group per row, one bar per series,
+    the value at the tip; a vertical line at reference, when given."""
+    labels = [label for label, _ in rows]
+    data = []
+    for index, name in enumerate(series):
+        values = [cells.get(name, math.nan) for _, cells in rows]
+        data.append({
+            "type": "bar", "orientation": "h", "name": name,
+            "y": labels, "x": [None if math.isnan(v) else v for v in values],
+            "text": ["" if math.isnan(v) else value_format(v) for v in values],
+            "textposition": "outside", "cliponaxis": False,
+            "marker": {"color": SERIES_COLORS[index % len(SERIES_COLORS)]},
+            "hovertemplate": "%{y}<br>" + name + ": %{text}<extra></extra>",
+        })
+    layout = {
+        "barmode": "group", "bargap": 0.3, "bargroupgap": 0.1,
+        "margin": {"l": 10, "r": 10, "t": 30, "b": 40},
+        "legend": {"orientation": "h", "y": 1.0, "yanchor": "bottom", "x": 1, "xanchor": "right"},
+        "xaxis": {"title": {"text": unit}, "rangemode": "tozero", "automargin": True},
+        "yaxis": {"autorange": "reversed", "automargin": True, "ticksuffix": "  "},
+    }
+    if reference is not None:
+        layout["shapes"] = [{"type": "line", "x0": reference, "x1": reference,
+                             "y0": 0, "y1": 1, "yref": "paper", "line": {"width": 1}}]
+    height = 80 + len(rows) * (14 * len(series) + 14)
+    return chart(title, {"data": data, "layout": layout}, height)
+
+
+def line_chart(title: str, labels, series, unit: str, reference: float | None = None) -> list[str]:
+    """Lines over ordered labels (versions), one per series."""
+    data = [{
+        "type": "scatter", "mode": "lines+markers", "name": name,
+        "x": labels, "y": [None if math.isnan(v) else v for v in points],
+        "line": {"color": SERIES_COLORS[index % len(SERIES_COLORS)], "width": 2},
+        "marker": {"size": 8},
+        "hovertemplate": "%{x}<br>" + name + ": %{y:.2f}×<extra></extra>",
+    } for index, (name, points) in enumerate(series.items())]
+    layout = {
+        "margin": {"l": 10, "r": 10, "t": 30, "b": 40},
+        "legend": {"orientation": "h", "y": 1.0, "yanchor": "bottom", "x": 1, "xanchor": "right"},
+        "xaxis": {"type": "category", "automargin": True},
+        "yaxis": {"title": {"text": unit}, "rangemode": "tozero", "automargin": True},
+    }
+    if reference is not None:
+        layout["shapes"] = [{"type": "line", "y0": reference, "y1": reference,
+                             "x0": 0, "x1": 1, "xref": "paper", "line": {"width": 1}}]
+    return chart(title, {"data": data, "layout": layout}, 320)
+
+
+def speedup_chart(el3, el4) -> list[str]:
+    """The speed-ups of every instance and algorithm, one bar per delta mode."""
+    modes = sorted({key[2] for key in el4}, key=mode_order)
+    rows = []
+    for key in sorted({k[:2] for k in el4}, key=lambda k: (k[0], list(ALGORITHMS).index(k[1]))):
+        cells = {mode: el3[(*key, mode)]["ns_per_evaluation"] / el4[(*key, mode)]["ns_per_evaluation"]
+                 for mode in modes if (*key, mode) in el3 and (*key, mode) in el4}
+        if cells:
+            rows.append((f"{key[0]}, {ALGORITHMS.get(key[1], key[1])}", cells))
+    return bar_chart("Speed-up of EasyLocal 4 over EasyLocal 3, by delta mode", rows,
+                     modes, "speed-up (×)", reference=1.0, value_format=lambda v: f"{v:.2f}×")
+
+
 def comparison_table(el3, el4) -> list[str]:
     """One table per delta mode."""
     lines = []
@@ -287,6 +418,13 @@ def median_by(rows, keys, value):
     for row in rows:
         groups[tuple(row[k] for k in keys)].append(float(row[value]))
     return {key: statistics.median(values) for key, values in groups.items()}
+
+
+def variant_chart(title: str, medians, unit: str) -> list[str]:
+    variants = sorted({key[-1] for key in medians})
+    rows = [(", ".join(row), {v: medians.get((*row, v), math.nan) for v in variants})
+            for row in sorted({key[:-1] for key in medians})]
+    return bar_chart(title, rows, variants, unit, value_format=lambda v: f"{v:.1f} {unit}")
 
 
 def variant_table(medians, row_headers, unit) -> list[str]:
@@ -340,6 +478,7 @@ def infrastructure(directory: pathlib.Path) -> list[str]:
                   "Median ns per evaluation over the trials, per variant; the fastest "
                   "in bold.", "",
                   *legend("search", {v for key in medians for v in key}),
+                  *variant_chart("Runner-level search, ns per evaluation", medians, "ns/eval"),
                   *variant_table(medians, ["Domain", "Algorithm"], "ns/eval")]
     traversal = directory / "traversal.csv"
     if traversal.exists():
@@ -349,6 +488,7 @@ def infrastructure(directory: pathlib.Path) -> list[str]:
                   "Median ns per move over the trials, per variant; the fastest in "
                   "bold.", "",
                   *legend("traversal", {v for key in medians for v in key}),
+                  *variant_chart("Neighborhood traversal, ns per move", medians, "ns/move"),
                   *variant_table(medians, ["Domain", "Workload"], "ns/move")]
     trace = directory / "trace.csv"
     if trace.exists():
@@ -614,6 +754,19 @@ def platforms(directory: pathlib.Path, label: str) -> list[str]:
         if relative:
             lines += ["", f"Time per evaluation relative to `{reference}`, geometric mean "
                       f"over the rows (below 1 is faster): {', '.join(relative)}."]
+            chart_rows = []
+            for key in keys:
+                base = toolchains[reference][1].get(key, {}).get("ns_per_evaluation", math.nan)
+                cells = {t: results[key]["ns_per_evaluation"] / base
+                         for t, (_, results, _) in toolchains.items()
+                         if key in results and t != reference}
+                chart_rows.append((f"{key[0]}, {ALGORITHMS.get(key[1], key[1])}"
+                                   + (f", {key[2]}" if len(modes) > 1 else ""), cells))
+            lines += bar_chart(f"{title(name)}: time per evaluation relative to {reference}",
+                               chart_rows, [t for t in toolchains if t != reference],
+                               f"time per evaluation relative to {reference} (×)",
+                               reference=1.0,
+                               value_format=lambda v: f"{v:.2f}×")
     return lines
 
 
@@ -659,7 +812,7 @@ def render(results: pathlib.Path) -> str:
             "",
             *comparison_legend(json.loads(
                 el3_vs_el4.MATRIX.read_text(encoding="utf-8"))),
-            "",
+            *speedup_chart(el3[1], latest),
             *comparison_table(el3[1], latest),
         ]
     paired = [(l, m, r, e) for l, (m, r), e in versions if e is not None]
@@ -670,6 +823,8 @@ def render(results: pathlib.Path) -> str:
                   "modes, per instance.", "",
                   "| Version | EasyLocal 3 | Date | " + " | ".join(instances) + " | Overall |",
                   "| --- | --- | --- | " + " | ".join("---:" for _ in instances) + " | ---: |"]
+        trend = {instance: [] for instance in instances}
+        trend["Overall"] = []
         for label_i, metadata_i, results_i, el3_i in reversed(paired):
             ratios = speedups(el3_i[1], results_i)
             per_instance = [geomean(v for k, v in ratios.items() if k[0] == i)
@@ -679,6 +834,11 @@ def render(results: pathlib.Path) -> str:
                 f"| {metadata_i['date'][:10]} | " +
                 " | ".join(ratio(r) for r in per_instance) +
                 f" | {ratio(geomean(ratios.values()))} |")
+            for instance, value in zip(instances, per_instance):
+                trend[instance].insert(0, value)
+            trend["Overall"].insert(0, geomean(ratios.values()))
+        lines += line_chart("Speed-up across versions, geometric mean per instance",
+                            [l for l, *_ in paired], trend, "speed-up (×)", reference=1.0)
 
     infrastructure_dir = results / label / "infrastructure"
     infra = infrastructure(infrastructure_dir) if infrastructure_dir.exists() else []
@@ -687,6 +847,8 @@ def render(results: pathlib.Path) -> str:
     platforms_dir = results / label / "platforms"
     if platforms_dir.exists():
         lines += platforms(platforms_dir, label)
+    if any('class="benchmark-chart"' in line for line in lines):
+        lines += ["", CHART_LOADER.rstrip()]
     return "\n".join(lines) + "\n"
 
 
