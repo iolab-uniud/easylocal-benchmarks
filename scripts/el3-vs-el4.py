@@ -44,7 +44,8 @@ def digest_of(header: str, paths) -> str:
     digest = hashlib.sha256(header.encode())
     for path in paths:
         digest.update(str(path.relative_to(ROOT)).encode() + b"\0")
-        digest.update(path.read_bytes() + b"\0")
+        # Without the line endings: a Windows checkout may have CRLF.
+        digest.update(path.read_bytes().replace(b"\r\n", b"\n") + b"\0")
     return digest.hexdigest()[:16]
 
 

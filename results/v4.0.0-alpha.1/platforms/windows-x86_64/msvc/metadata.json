@@ -3,7 +3,7 @@
   "label": "v4.0.0-alpha.1",
   "platform_id": "windows-x86_64",
   "toolchain": "msvc",
-  "matrix_key": "8583b5f59a93e928",
+  "matrix_key": "0c47d41c4ec6cfff",
   "delta_modes": [
     "all"
   ],
