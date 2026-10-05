@@ -50,7 +50,7 @@ modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
   | --- | --- | --- | --- |
   | TSP | O(1) 2-opt delta (example) | – | no delta |
   | Assignment | overload and load-imbalance deltas, O(jobs) each | overload delta only | no delta (example) |
-  | Exam Timetabling | conflict and consecutive-exam deltas (scan the conflicts), timeslot-load delta (recounts the loads, O(exams)) | no timeslot-load delta (example) | no delta |
+  | Exam Timetabling | conflict and consecutive-exam deltas (visit the conflicts of the moved exam), timeslot-load delta (recounts the loads, O(exams)) | no timeslot-load delta (example) | no delta |
 
   "(example)" marks the configuration of the EasyLocal 4 example, the default
   of both drivers. TSP has a single cost component, so it has no `mixed`

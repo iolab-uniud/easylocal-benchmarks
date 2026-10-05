@@ -35,6 +35,12 @@ struct Conflict
     long students;
 };
 
+struct ConflictingExam
+{
+    std::size_t exam;
+    long students;
+};
+
 // Same file format as ExamTimetablingInstance::read
 // (examples/exam_timetabling/instance.hpp): exams,
 // timeslots, conflicts, then one "first second students" line per conflict.
@@ -61,10 +67,19 @@ public:
         }
         if (timeslot_count == 0 && (exam_count != 0 || !conflicts.empty()))
             throw std::runtime_error("invalid exam-timetabling instance: " + path);
+        conflicts_by_exam.resize(exam_count);
+        for (const auto& c : conflicts)
+        {
+            conflicts_by_exam[c.first].push_back({c.second, c.students});
+            conflicts_by_exam[c.second].push_back({c.first, c.students});
+        }
     }
 
     std::size_t exam_count = 0, timeslot_count = 0;
     std::vector<Conflict> conflicts;
+    // For each exam, the exams it shares students with, as conflicts_by_exam()
+    // of examples/exam_timetabling/instance.hpp: the deltas visit only these.
+    std::vector<std::vector<ConflictingExam>> conflicts_by_exam;
 };
 
 class Timetable
@@ -191,16 +206,9 @@ public:
     {
         const auto source = st.timeslot_by_exam[mv.exam];
         CFtype change = 0;
-        for (const auto& c : in.conflicts)
+        for (const auto& c : in.conflicts_by_exam[mv.exam])
         {
-            std::size_t other;
-            if (c.first == mv.exam)
-                other = c.second;
-            else if (c.second == mv.exam)
-                other = c.first;
-            else
-                continue;
-            const auto other_timeslot = st.timeslot_by_exam[other];
+            const auto other_timeslot = st.timeslot_by_exam[c.exam];
             if (source == other_timeslot)
                 change -= c.students;
             if (mv.destination == other_timeslot)
@@ -220,16 +228,9 @@ public:
     {
         const auto source = st.timeslot_by_exam[mv.exam];
         CFtype change = 0;
-        for (const auto& c : in.conflicts)
+        for (const auto& c : in.conflicts_by_exam[mv.exam])
         {
-            std::size_t other;
-            if (c.first == mv.exam)
-                other = c.second;
-            else if (c.second == mv.exam)
-                other = c.first;
-            else
-                continue;
-            const auto other_timeslot = st.timeslot_by_exam[other];
+            const auto other_timeslot = st.timeslot_by_exam[c.exam];
             const auto old_distance = source > other_timeslot ? source - other_timeslot : other_timeslot - source;
             const auto new_distance = mv.destination > other_timeslot ? mv.destination - other_timeslot
                                                                        : other_timeslot - mv.destination;
