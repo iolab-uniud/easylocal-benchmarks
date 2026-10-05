@@ -257,7 +257,8 @@ jobs:
             toolchains: clang-cl msvc
     env:
       LABEL: ${{ needs.prepare.outputs.label }}
-      PLATFORM: ${{ matrix.platform }}
+      # Not PLATFORM: the Visual Studio environment defines Platform=x64.
+      BENCH_PLATFORM: ${{ matrix.platform }}
       TOOLCHAINS: ${{ matrix.toolchains }}
     steps:
       - name: Checkout
@@ -337,23 +338,23 @@ jobs:
               drivers+=("--driver" "$toolchain=$PWD/build/$toolchain/el4_comparison$exe")
               "build/$toolchain/el4_comparison$exe" --describe
             else
-              echo "::warning::$toolchain does not build EasyLocal $LABEL on $PLATFORM: left out"
+              echo "::warning::$toolchain does not build EasyLocal $LABEL on $BENCH_PLATFORM: left out"
             fi
           done
           if [ "${#drivers[@]}" -eq 0 ]; then
-            echo "::error::no toolchain builds EasyLocal $LABEL on $PLATFORM"
+            echo "::error::no toolchain builds EasyLocal $LABEL on $BENCH_PLATFORM"
             exit 1
           fi
           echo "DRIVERS=${drivers[*]}" >> "$GITHUB_ENV"
 
       - name: Run the matrix
         run: |
-          out="build/results/$LABEL/platforms/$PLATFORM"
+          out="build/results/$LABEL/platforms/$BENCH_PLATFORM"
           python3 scripts/machine-metadata.py --machine-only \
             --output "$out/metadata.csv" --repo-root easylocal
           python3 scripts/cpu-time.py start build/cpu-time.json
           # shellcheck disable=SC2086 # DRIVERS is a list of --driver options
-          python3 scripts/platforms.py run --platform "$PLATFORM" $DRIVERS \
+          python3 scripts/platforms.py run --platform "$BENCH_PLATFORM" $DRIVERS \
             --output "$out" --repetitions 3 --label "$LABEL"
           python3 scripts/cpu-time.py stop build/cpu-time.json "$out/metadata.csv"
           rm -rf "$out/instances"
