@@ -1,0 +1,26 @@
+key,value
+schema_version,1
+toolchain,several
+os,Windows
+os_release,2025Server
+os_description,Windows-2025Server-10.0.26100-SP0
+architecture,AMD64
+runner_os,Windows
+runner_arch,X64
+hardware_model,AMD EPYC 9V45 96-Core Processor
+logical_cpus,4
+memory,16.0 GiB
+hypervisor,Virtual Machine
+vm_size,Standard_D4ads_v7
+cmake,cmake version 4.4.3
+ninja,1.13.2
+sdkroot,
+xcode,n/a
+generator,Ninja
+build_type,Release
+cpp_standard,23
+git_commit,c39421d8545cec4991246469ef3a2404ae18410c
+git_dirty,false
+cpu_steal_percent,unavailable
+cpu_busy_percent,unavailable
+cpu_idle_percent,unavailable

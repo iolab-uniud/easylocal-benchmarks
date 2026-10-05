@@ -1,0 +1,8 @@
+key,value
+toolchain,msvc
+compiler,msvc
+compiler_version,195136260
+stdlib,msvc-stl
+stdlib_version,202604L
+cxxflags,/DWIN32 /D_WINDOWS /EHsc /O2 /Ob2 /DNDEBUG
+cpp_standard,202400
