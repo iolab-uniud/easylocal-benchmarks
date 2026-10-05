@@ -28,7 +28,6 @@
 // The examples of the EasyLocal checkout (EASYLOCAL_SOURCE_DIR), included by
 // path because the three use the same file names.
 #include "assignment/cost_components.hpp"
-#include "assignment/instance_io.hpp"
 #include "assignment/neighborhood_explorer.hpp"
 #include "exam_timetabling/cost_components.hpp"
 #include "exam_timetabling/cost_deltas.hpp"
