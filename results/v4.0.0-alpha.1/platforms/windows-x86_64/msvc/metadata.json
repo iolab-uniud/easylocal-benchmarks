@@ -1,8 +1,8 @@
 {
   "framework": "el4",
   "label": "v4.0.0-alpha.1",
-  "platform_id": "x64",
-  "toolchain": "clang-cl",
+  "platform_id": "windows-x86_64",
+  "toolchain": "msvc",
   "matrix_key": "8583b5f59a93e928",
   "delta_modes": [
     "all"
