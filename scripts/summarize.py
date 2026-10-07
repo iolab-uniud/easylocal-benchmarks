@@ -311,7 +311,8 @@ def bar_chart(title: str, rows, series, unit: str, reference: float | None = Non
               value_format=lambda v: f"{v:.2f}") -> list[str]:
     """A horizontal grouped bar chart: one group per row, one bar per series,
     the value at the tip; a vertical line at reference, when given."""
-    labels = [label for label, _ in rows]
+    # A label of several parts goes on as many lines, leaving the plot the width.
+    labels = [label.replace(", ", "<br>") for label, _ in rows]
     data = []
     for index, name in enumerate(series):
         values = [cells.get(name, math.nan) for _, cells in rows]
@@ -323,17 +324,26 @@ def bar_chart(title: str, rows, series, unit: str, reference: float | None = Non
             "marker": {"color": SERIES_COLORS[index % len(SERIES_COLORS)]},
             "hovertemplate": "%{y}<br>" + name + ": %{text}<extra></extra>",
         })
+    # Each group holds its bars, and at least its label's lines; the gap keeps
+    # the bars thin where the label makes the group taller than they need.
+    lines_per_label = max((label.count("<br>") + 1 for label in labels), default=1)
+    group_height = max(14 * len(series), 18 * lines_per_label) + 14
     layout = {
-        "barmode": "group", "bargap": 0.3, "bargroupgap": 0.1,
+        "barmode": "group", "bargroupgap": 0.1,
+        "bargap": max(0.3, 1 - 20.0 * len(series) / group_height),
         "margin": {"l": 10, "r": 10, "t": 30, "b": 40},
         "legend": {"orientation": "h", "y": 1.0, "yanchor": "bottom", "x": 1, "xanchor": "right"},
-        "xaxis": {"title": {"text": unit}, "rangemode": "tozero", "automargin": True},
+        # Room on the right for the value written at the tip of the longest bar.
+        "xaxis": {"title": {"text": unit}, "automargin": True,
+                  "range": [0, 1.12 * max((v for _, cells in rows
+                                           for v in cells.values() if not math.isnan(v)),
+                                          default=1.0)]},
         "yaxis": {"autorange": "reversed", "automargin": True, "ticksuffix": "  "},
     }
     if reference is not None:
         layout["shapes"] = [{"type": "line", "x0": reference, "x1": reference,
                              "y0": 0, "y1": 1, "yref": "paper", "line": {"width": 1}}]
-    height = 80 + len(rows) * (14 * len(series) + 14)
+    height = 80 + len(rows) * group_height
     return chart(title, {"data": data, "layout": layout}, height)
 
 
