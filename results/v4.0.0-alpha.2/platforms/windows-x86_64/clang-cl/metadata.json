@@ -1,0 +1,15 @@
+{
+  "framework": "el4",
+  "label": "v4.0.0-alpha.2",
+  "platform_id": "windows-x86_64",
+  "toolchain": "clang-cl",
+  "matrix_key": "ae8ccd4698914b9c",
+  "delta_modes": [
+    "all"
+  ],
+  "repetitions": 3,
+  "commit": "08a8981635f8404755d898529d0aced9237af69d",
+  "date": "2026-10-07T13:40:24+00:00",
+  "platform": "Windows AMD64",
+  "runner_image": "win25-vs2026 20260925.250.1"
+}

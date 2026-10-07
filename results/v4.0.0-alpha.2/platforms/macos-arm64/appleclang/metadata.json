@@ -1,0 +1,15 @@
+{
+  "framework": "el4",
+  "label": "v4.0.0-alpha.2",
+  "platform_id": "macos-arm64",
+  "toolchain": "appleclang",
+  "matrix_key": "0c47d41c4ec6cfff",
+  "delta_modes": [
+    "all"
+  ],
+  "repetitions": 3,
+  "commit": "08a8981635f8404755d898529d0aced9237af69d",
+  "date": "2026-10-07T13:37:03+00:00",
+  "platform": "Darwin arm64",
+  "runner_image": "macos26 20260907.0351.1"
+}

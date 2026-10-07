@@ -1,0 +1,32 @@
+key,value
+schema_version,1
+toolchain,several
+os,Linux
+os_release,7.0.0-1012-azure
+os_description,Ubuntu 26.04.1 LTS
+architecture,aarch64
+runner_os,Linux
+runner_arch,ARM64
+hardware_model,Neoverse-N2
+logical_cpus,4
+sockets,1
+threads_per_core,1
+l1d_cache,256 KiB (4 instances)
+l1i_cache,256 KiB (4 instances)
+l2_cache,4 MiB (4 instances)
+l3_cache,128 MiB (1 instance)
+isa,aes
+memory,15.6 GiB
+vm_size,Standard_D4pds_v6
+cmake,cmake version 4.4.3
+ninja,1.13.2
+sdkroot,
+xcode,n/a
+generator,Ninja
+build_type,Release
+cpp_standard,23
+git_commit,7aebe45c8a1ff4ebbded30c2b6e8499e7c48b5eb
+git_dirty,false
+cpu_steal_percent,0.00
+cpu_busy_percent,25.37
+cpu_idle_percent,74.63
