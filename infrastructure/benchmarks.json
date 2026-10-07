@@ -43,12 +43,12 @@
         "explicit-null": "`trace::null_tracer` passed explicitly; it should cost nothing",
         "counting": "a tracer that only counts the events: the cost of producing them",
         "memory": "`trace::memory_recorder`, every event kept in memory",
-        "binary-buffered-discard": "`trace::buffered_binary_recorder` (the ELTR binary format) writing to a stream that discards the bytes: encoding and buffering without input/output",
+        "binary-buffered-discard": "`trace::binary_recorder` (the ELTR binary format) writing to a stream that discards the bytes: encoding and buffering without input/output",
         "binary-buffered-discard-visited": "the same, on a problem with a solution hash, which records a `solution_visited` event with the hash of each solution the search moves to",
         "binary-buffered-discard-without-visits": "the same problem, with `solution_visited` left out at compile time (`trace::without<event::solution_visited>`); it should cost what `binary-buffered-discard` costs",
         "binary-async-producer-discard": "`trace::async_binary_recorder`, which hands the events to a writer thread, writing to a discarding stream; the time of the search until it ends",
         "binary-async-total-discard": "the same, also waiting for the writer to finish",
-        "binary-buffered-file": "`trace::buffered_binary_recorder` writing a temporary file (without `fsync`)",
+        "binary-buffered-file": "`trace::binary_recorder` writing a temporary file (without `fsync`)",
         "binary-async-producer-file": "`trace::async_binary_recorder` writing a temporary file; the time of the search until it ends",
         "binary-async-total-file": "the same, also waiting for the writer to finish"
       }

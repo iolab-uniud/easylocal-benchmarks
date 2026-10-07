@@ -229,7 +229,7 @@ int main()
 
     discard_streambuf binary_discarded;
     std::ostream binary_discarded_output{&binary_discarded};
-    easylocal::trace::buffered_binary_recorder<cost_type> binary{
+    easylocal::trace::binary_recorder<cost_type> binary{
         binary_discarded_output};
     const auto binary_streaming = measure([&] {
         const auto result = bound.run(initial, easylocal::with(binary));
@@ -253,7 +253,7 @@ int main()
     // (a hash per committed move), or leaves them out at compile time.
     discard_streambuf visited_discarded;
     std::ostream visited_discarded_output{&visited_discarded};
-    easylocal::trace::buffered_binary_recorder<cost_type> visited_binary{
+    easylocal::trace::binary_recorder<cost_type> visited_binary{
         visited_discarded_output};
     const auto binary_visited = measure([&] {
         const auto result = hashed.run(initial, easylocal::with(visited_binary));
@@ -263,7 +263,7 @@ int main()
 
     discard_streambuf unvisited_discarded;
     std::ostream unvisited_discarded_output{&unvisited_discarded};
-    easylocal::trace::buffered_binary_recorder<cost_type> unvisited_binary{
+    easylocal::trace::binary_recorder<cost_type> unvisited_binary{
         unvisited_discarded_output};
     auto without_visits =
         easylocal::trace::without<easylocal::trace::event::solution_visited>(
@@ -289,7 +289,7 @@ int main()
     {
         std::ofstream output{buffered_file_path, std::ios::binary | std::ios::trunc};
         {
-            easylocal::trace::buffered_binary_recorder<cost_type> recorder{output};
+            easylocal::trace::binary_recorder<cost_type> recorder{output};
             binary_file = measure([&] {
                 const auto result = bound.run(initial, easylocal::with(recorder));
                 return result_token(result);

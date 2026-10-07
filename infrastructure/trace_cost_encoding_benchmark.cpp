@@ -94,7 +94,7 @@ void run_case(
 
     discard_streambuf discarded;
     std::ostream output{&discarded};
-    easylocal::trace::buffered_binary_recorder<Cost, Writer> recorder{
+    easylocal::trace::binary_recorder<Cost, Writer> recorder{
         output,
         writer};
 
