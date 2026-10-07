@@ -112,6 +112,14 @@ void describe()
 namespace el = easylocal;
 namespace exam = exam_timetabling;
 
+// The delta of the consecutive-exam component, under its name of the measured
+// EasyLocal: 4.0.0-alpha.3 renamed ConsecutiveExamDeltaEvaluator.
+#if __has_include(<easylocal/testing/delta_cost_component.hpp>)
+using ConsecutiveExamDelta = exam::ConsecutiveExamDelta;
+#else
+using ConsecutiveExamDelta = exam::ConsecutiveExamDeltaEvaluator;
+#endif
+
 struct Options
 {
     std::string problem;
@@ -312,7 +320,7 @@ void run_exam(const Options& options)
     const auto mixed = neighborhood
                      | el::delta<exam::StudentConflictComponent>()
                      | el::delta<exam::ConsecutiveExamComponent,
-                                 exam::ConsecutiveExamDeltaEvaluator>();
+                                 ConsecutiveExamDelta>();
     const auto& mode = options.delta_mode;
     if (mode == "mixed")
         run(options, input, initial, sm, mixed);
