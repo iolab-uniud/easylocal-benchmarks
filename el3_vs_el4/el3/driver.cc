@@ -169,7 +169,9 @@ void RunTsp(const Options& o)
 // The union of the 2-opt and the swap neighborhoods (SetUnion), the EasyLocal
 // 3 counterpart of the EasyLocal 4 neighborhood_union: the two are drawn with
 // the same bias and enumerated one after the other. The deltas belong to the
-// children, which the union delegates to. all: both deltas; none: neither.
+// children, which the union delegates to: all, both deltas; mixed, the 2-opt
+// delta only, the swap moves evaluated on a copy of the solution; none,
+// neither.
 void RunTspUnion(const Options& o)
 {
     const tsp::Input in(o.instance);
@@ -186,6 +188,11 @@ void RunTspUnion(const Options& o)
     {
         two_opt.AddDeltaCostComponent(two_opt_delta);
         swap.AddDeltaCostComponent(swap_delta);
+    }
+    else if (o.delta_mode == "mixed")
+    {
+        two_opt.AddDeltaCostComponent(two_opt_delta);
+        swap.AddCostComponent(length);
     }
     else if (o.delta_mode == "none")
     {

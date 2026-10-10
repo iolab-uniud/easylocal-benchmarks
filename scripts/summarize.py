@@ -50,7 +50,8 @@ ALGORITHMS = {"sd": "steepest descent", "fd": "first descent", "sa": "simulated 
 DELTA_MODES = {
     "all": "every cost component has a delta evaluation",
     "mixed": "some cost components have a delta evaluation, the others are "
-             "evaluated on a copy of the solution with the move applied",
+             "evaluated on a copy of the solution with the move applied; in "
+             "the union of neighborhoods, the delta of the 2-opt moves only",
     "none": "no delta evaluation: every move is applied to a copy of the "
             "solution and its cost computed from scratch",
 }
@@ -73,10 +74,11 @@ starts a run.
   the swap neighborhoods (EasyLocal 3 `SetUnion`, EasyLocal 4
   `neighborhood_union`), which measures the cost of a compound neighborhood in
   both frameworks. Each is measured with delta evaluations for all its cost
-  components, for some of them, and for none (the TSP has a single component,
-  so no mixed mode): the trajectories are the same, only the speed changes.
-  Both frameworks are measured at every release, in the same job on the same
-  machine.
+  components, for some of them, and for none (the TSP with 2-opt has a single
+  component and a single neighborhood, so no mixed mode; the union has the
+  delta of the 2-opt moves only): the trajectories are the same, only the
+  speed changes. Both frameworks are measured at every release, in the same
+  job on the same machine.
 - **Infrastructure.** Neighborhood traversal, runner-level search and tracing
   overhead (`infrastructure/` of easylocal-benchmarks).
 - **Compilers and architectures.** The EasyLocal 4 side of the comparison

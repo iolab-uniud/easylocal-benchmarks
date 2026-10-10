@@ -21,7 +21,7 @@
 // assignment, mixed for exam. TSP has a single component, hence no mixed
 // mode. The deltas the examples lack are in ../../common. tsp-union searches
 // the TSP with the union of the 2-opt and the swap neighborhoods of the
-// example, which have a delta each (all) or none (none).
+// example, which have a delta each (all), only 2-opt (mixed) or none (none).
 
 #include <easylocal/app/io.hpp>
 #include <easylocal/helpers/neighborhood_union.hpp>
@@ -276,7 +276,11 @@ void run_tsp(const Options& options)
 
 // The union of the 2-opt and the swap neighborhoods (neighborhood_union),
 // the two drawn with the same bias and enumerated one after the other, as the
-// EasyLocal 3 SetUnion. all: the delta of each neighborhood; none: no delta.
+// EasyLocal 3 SetUnion. all: the delta of each neighborhood; mixed: the 2-opt
+// delta only; none: no delta. In mixed the union has a component that one
+// child has no delta for, which EasyLocal 4 then evaluates in full for the
+// moves of both children, while EasyLocal 3 keeps using the delta of the
+// child that has one: the trajectory is the same, the work is not.
 void run_tsp_union(const Options& options)
 {
     const auto input = el::load_input<tsp::TspInstance>(options.instance);
@@ -284,14 +288,20 @@ void run_tsp_union(const Options& options)
     initial.tour = read_values(options.initial);
     const auto sm = el::solution_manager<tsp::TspSolutionManager>()
                   | el::component<tsp::TourLengthComponent>();
+    const auto two_opt = el::neighborhood<tsp::TwoOptNeighborhoodExplorer>()
+                       | el::delta<tsp::TourLengthComponent, tsp::TwoOptTourLengthDelta>();
     const auto& mode = options.delta_mode;
     if (mode == "all")
         run(options, input, initial, sm,
             el::neighborhood_union(
-                el::neighborhood<tsp::TwoOptNeighborhoodExplorer>()
-                    | el::delta<tsp::TourLengthComponent, tsp::TwoOptTourLengthDelta>(),
+                two_opt,
                 el::neighborhood<tsp::SwapCitiesNeighborhoodExplorer>()
                     | el::delta<tsp::TourLengthComponent, tsp::SwapTourLengthDelta>())
+                | el::random_biases(1.0, 1.0));
+    else if (mode == "mixed")
+        run(options, input, initial, sm,
+            el::neighborhood_union(
+                two_opt, el::neighborhood<tsp::SwapCitiesNeighborhoodExplorer>())
                 | el::random_biases(1.0, 1.0));
     else if (mode == "none")
         run(options, input, initial, sm,

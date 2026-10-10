@@ -44,7 +44,8 @@ modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
     composes them with `neighborhood_union`, whose move is a variant of the
     two, EasyLocal 3 with `SetUnionNeighborhoodExplorer`, whose move is a
     tuple of `ActiveMove`s. It measures what a compound neighborhood costs in
-    each framework.
+    each framework, and what a neighborhood without a delta costs the others
+    of its union.
   - *Assignment*: total overload and load imbalance; job reassignment moves,
     by job and then destination machine.
   - *Exam Timetabling*: student conflicts, consecutive exams and timeslot
@@ -61,17 +62,18 @@ modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
   | Problem | `all` | `mixed` | `none` |
   | --- | --- | --- | --- |
   | TSP | O(1) 2-opt delta (example) | – | no delta |
-  | TSP, union | the O(1) delta of each neighborhood | – | no delta |
+  | TSP, union | the O(1) delta of each neighborhood | the 2-opt delta only | no delta |
   | Assignment | overload and load-imbalance deltas, O(jobs) each | overload delta only | no delta (example) |
   | Exam Timetabling | conflict and consecutive-exam deltas (visit the conflicts of the moved exam), timeslot-load delta (recounts the loads, O(exams)) | no timeslot-load delta (example) | no delta |
 
   "(example)" marks the configuration of the EasyLocal 4 example, the default
   of both drivers. TSP has a single cost component, so it has no `mixed`
-  mode, and neither has the union, whose two neighborhoods are given a delta
-  together or not at all: in EasyLocal 4 a component without a delta in one
-  child is evaluated in full for the moves of every child, so a mixed mode
-  would not measure the same thing in the two frameworks. The examples have no
-  whole-solution deltas (EasyLocal commit
+  mode; the union has one, where only the 2-opt moves have a delta. There the
+  two frameworks do different work for the same trajectory: EasyLocal 3 keeps
+  using the delta of the child that has one and evaluates only the swap moves
+  on a copy, while EasyLocal 4, whose union forwards a delta only for a
+  component every child has one for, evaluates the tour length in full for the
+  moves of both. The examples have no whole-solution deltas (EasyLocal commit
   21bc016): the deltas they lack (assignment overload and load imbalance,
   exam timeslot load) are in `../common/` for EasyLocal 4 and in `el3/` for
   EasyLocal 3, with the same logic. The delta mode changes the speed only,

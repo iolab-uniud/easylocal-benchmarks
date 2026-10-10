@@ -2,7 +2,7 @@
   "description": "EasyLocal 3 (easylocal-legacy v3.4.1) versus EasyLocal 4 on the EasyLocal example problems. Changing this file changes the matrix key: EasyLocal 4 results of different keys are not compared, and the EasyLocal 3 baseline is measured again.",
   "problems": {
     "tsp": "tour length; 2-opt moves; delta modes: all = the O(1) 2-opt delta (the example's configuration), none = no delta; no mixed mode, as there is a single component",
-    "tsp-union": "tour length; the union of the 2-opt and the swap neighborhoods (EL3 SetUnion, EL4 neighborhood_union), drawn with equal bias and enumerated one after the other; delta modes: all = the O(1) delta of each neighborhood, none = no delta",
+    "tsp-union": "tour length; the union of the 2-opt and the swap neighborhoods (EL3 SetUnion, EL4 neighborhood_union), drawn with equal bias and enumerated one after the other; delta modes: all = the O(1) delta of each neighborhood, mixed = the 2-opt delta only, none = no delta",
     "assignment": "1000 * total overload + load imbalance; job reassignment moves; delta modes: all = O(jobs) overload and load-imbalance deltas, mixed = the overload delta only, none = no delta (the example's configuration)",
     "exam": "1000 * student conflicts + 10 * consecutive exams + timeslot load; exam moves; delta modes: all = conflict, consecutive-exam and O(exams) timeslot-load deltas, mixed = no timeslot-load delta (the example's configuration), none = no delta"
   },
@@ -66,6 +66,7 @@
     ],
     "tsp-union": [
       "all",
+      "mixed",
       "none"
     ],
     "assignment": [
