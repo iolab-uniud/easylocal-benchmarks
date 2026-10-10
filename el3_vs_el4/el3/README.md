@@ -1,8 +1,9 @@
 # EasyLocal 3 side of the EL3-versus-EL4 benchmark
 
 A standalone CMake project that ports the three EasyLocal 4 examples used by
-`../el4/driver.cpp`, in their current form, (TSP 2-opt, assignment reassign-job, exam-timetabling
-move-exam) to EasyLocal 3 (release v3.4.1) and runs them with the same command
+`../el4/driver.cpp`, in their current form, (TSP 2-opt and 2-opt + swap,
+assignment reassign-job, exam-timetabling move-exam) to EasyLocal 3 (release
+v3.4.1) and runs them with the same command
 line and the same output.
 
 ## Build
@@ -26,7 +27,8 @@ flags are added; the EasyLocal 3 headers only produce warnings
 ## Usage
 
 ```
-el3_comparison --problem tsp|assignment|exam --instance FILE --initial FILE
+el3_comparison --problem tsp|tsp-union|assignment|exam --instance FILE
+               --initial FILE
                --algorithm sd|fd|sa --seed N [--delta-mode all|mixed|none]
                [--sa-start-temperature T --sa-min-temperature T
                 --sa-cooling-rate R --sa-samples N]
@@ -68,6 +70,11 @@ solution.
   valid 2-opt move (TSP), or an ordinal over the jobs or exams and their other
   machines or timeslots (assignment, exam). An empty neighborhood throws `EmptyNeighborhood`.
   `FeasibleMove` is the EasyLocal 4 `is_valid`.
+- The union (`tsp-union`) is `SetUnionNeighborhoodExplorer` over the 2-opt and
+  the swap neighborhood explorers, with equal bias, the counterpart of the
+  EasyLocal 4 `neighborhood_union`: both enumerate the first neighborhood and
+  then the second, and both draw the neighborhood of a random move by its
+  bias. The deltas stay on the children, which the union delegates to.
 - Algorithms: `sd` is `SteepestDescent`; `fd` is `FirstDescent`; `sa` is `SimulatedAnnealing` with
   `start_temperature`, `min_temperature`, `cooling_rate` and
   `max_neighbors_sampled` set (no computed start temperature, no

@@ -1,5 +1,6 @@
-// EasyLocal 3 port of the EasyLocal 4 TSP example (examples/tsp): 2-opt
-// neighborhood, tour length with the closing edge, O(1) 2-opt delta.
+// EasyLocal 3 port of the EasyLocal 4 TSP example (examples/tsp): tour length
+// with the closing edge, the 2-opt neighborhood with its O(1) delta and the
+// swap neighborhood with its O(1) delta, which the union benchmark joins.
 #pragma once
 
 #include "helpers/solutionmanager.hh"
@@ -227,6 +228,131 @@ private:
                 }
         }
         return false;
+    }
+};
+
+// The swap neighborhood of the EasyLocal 4 example (examples/tsp/
+// swap_move.hpp): exchange the cities visited at two positions of the tour.
+class SwapCities
+{
+public:
+    std::size_t first_position = 0, second_position = 0;
+};
+
+inline bool operator==(const SwapCities& a, const SwapCities& b)
+{
+    return a.first_position == b.first_position &&
+           a.second_position == b.second_position;
+}
+inline bool operator!=(const SwapCities& a, const SwapCities& b) { return !(a == b); }
+inline bool operator<(const SwapCities& a, const SwapCities& b)
+{
+    return a.first_position < b.first_position ||
+           (a.first_position == b.first_position && a.second_position < b.second_position);
+}
+inline std::ostream& operator<<(std::ostream& os, const SwapCities& mv)
+{
+    return os << "position " << mv.first_position << " <-> position " << mv.second_position;
+}
+
+class SwapTourLengthDelta : public DeltaCostComponent<Input, Tour, SwapCities, double>
+{
+public:
+    SwapTourLengthDelta(const Input& in, TourLength& cc)
+        : DeltaCostComponent<Input, Tour, SwapCities, double>(in, cc, "SwapTourLengthDelta") {}
+
+    // The at most four edges the swap replaces, each counted once.
+    double ComputeDeltaCost(const Tour& st, const SwapCities& mv) const override
+    {
+        const auto n = st.tour.size();
+        const std::size_t affected[4] = {
+            (mv.first_position + n - 1) % n,
+            mv.first_position,
+            (mv.second_position + n - 1) % n,
+            mv.second_position,
+        };
+
+        double removed = 0.0, added = 0.0;
+        for (std::size_t i = 0; i < 4; ++i)
+        {
+            bool duplicate = false;
+            for (std::size_t j = 0; j < i; ++j)
+                duplicate = duplicate || affected[j] == affected[i];
+            if (duplicate)
+                continue;
+
+            const auto edge = affected[i];
+            const auto next = (edge + 1) % n;
+            removed += in.Distance(st.tour[edge], st.tour[next]);
+            added += in.Distance(CityAfterSwap(st, mv, edge), CityAfterSwap(st, mv, next));
+        }
+        return added - removed;
+    }
+
+private:
+    static std::size_t CityAfterSwap(const Tour& st, const SwapCities& mv, std::size_t position)
+    {
+        if (position == mv.first_position)
+            return st.tour[mv.second_position];
+        if (position == mv.second_position)
+            return st.tour[mv.first_position];
+        return st.tour[position];
+    }
+};
+
+class SwapCitiesNeighborhoodExplorer
+    : public NeighborhoodExplorer<Input, Tour, SwapCities, CostStructure>
+{
+public:
+    SwapCitiesNeighborhoodExplorer(const Input& in, TspSolutionManager& sm)
+        : NeighborhoodExplorer<Input, Tour, SwapCities, CostStructure>(in, sm, "swap") {}
+
+    bool FeasibleMove(const Tour& st, const SwapCities& mv) const override
+    {
+        return mv.first_position < mv.second_position && mv.second_position < st.tour.size();
+    }
+
+    // Uniform over the pairs in O(1), as the EasyLocal 4 random_move: a
+    // position, then another among the rest, ordered.
+    void RandomMove(const Tour& st, SwapCities& mv) const override
+    {
+        const auto n = st.tour.size();
+        if (n < 2)
+            throw EmptyNeighborhood();
+        const auto first = Random::Uniform<std::size_t>(0, n - 1);
+        auto second = Random::Uniform<std::size_t>(0, n - 2);
+        if (second >= first)
+            ++second;
+        mv = SwapCities{std::min(first, second), std::max(first, second)};
+    }
+
+    // Every pair of positions i < j, in lexicographic order.
+    void FirstMove(const Tour& st, SwapCities& mv) const override
+    {
+        if (st.tour.size() < 2)
+            throw EmptyNeighborhood();
+        mv = SwapCities{0, 1};
+    }
+
+    bool NextMove(const Tour& st, SwapCities& mv) const override
+    {
+        const auto n = st.tour.size();
+        if (mv.second_position + 1 < n)
+        {
+            mv = SwapCities{mv.first_position, mv.second_position + 1};
+            return true;
+        }
+        if (mv.first_position + 2 < n)
+        {
+            mv = SwapCities{mv.first_position + 1, mv.first_position + 2};
+            return true;
+        }
+        return false;
+    }
+
+    void MakeMove(Tour& st, const SwapCities& mv) const override
+    {
+        std::swap(st.tour[mv.first_position], st.tour[mv.second_position]);
     }
 };
 

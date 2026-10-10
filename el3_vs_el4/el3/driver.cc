@@ -1,7 +1,7 @@
 // EasyLocal 3 (v3.4.1) side of the EL3-versus-EL4 benchmark; same command line
 // and output as ../el4/driver.cpp:
 //
-//   el3_comparison --problem tsp|assignment|exam --instance FILE
+//   el3_comparison --problem tsp|tsp-union|assignment|exam --instance FILE
 //       --initial FILE --algorithm sd|fd|sa --seed N
 //       --delta-mode all|mixed|none
 //       [--sa-start-temperature T --sa-min-temperature T
@@ -18,6 +18,7 @@
 #include "exam.hh"
 #include "tsp.hh"
 
+#include "helpers/multimodalneighborhoodexplorer.hh"
 #include "runners/firstdescent.hh"
 #include "runners/simulatedannealing.hh"
 #include "runners/steepestdescent.hh"
@@ -165,6 +166,42 @@ void RunTsp(const Options& o)
     Run(o, in, initial, sm, ne);
 }
 
+// The union of the 2-opt and the swap neighborhoods (SetUnion), the EasyLocal
+// 3 counterpart of the EasyLocal 4 neighborhood_union: the two are drawn with
+// the same bias and enumerated one after the other. The deltas belong to the
+// children, which the union delegates to. all: both deltas; none: neither.
+void RunTspUnion(const Options& o)
+{
+    const tsp::Input in(o.instance);
+    tsp::Tour initial(in);
+    ReadValues(o.initial, initial.tour, in.city_count);
+    tsp::TspSolutionManager sm(in);
+    tsp::TourLength length(in);
+    sm.AddCostComponent(length);
+    tsp::TwoOptNeighborhoodExplorer two_opt(in, sm);
+    tsp::SwapCitiesNeighborhoodExplorer swap(in, sm);
+    tsp::TwoOptTourLengthDelta two_opt_delta(in, length);
+    tsp::SwapTourLengthDelta swap_delta(in, length);
+    if (o.delta_mode == "all")
+    {
+        two_opt.AddDeltaCostComponent(two_opt_delta);
+        swap.AddDeltaCostComponent(swap_delta);
+    }
+    else if (o.delta_mode == "none")
+    {
+        two_opt.AddCostComponent(length);
+        swap.AddCostComponent(length);
+    }
+    else
+        UnsupportedMode(o);
+    typedef SetUnionNeighborhoodExplorer<tsp::Input, tsp::Tour, tsp::CostStructure,
+                                         tsp::TwoOptNeighborhoodExplorer,
+                                         tsp::SwapCitiesNeighborhoodExplorer>
+        UnionNeighborhoodExplorer;
+    UnionNeighborhoodExplorer ne(in, sm, "2-opt+swap", two_opt, swap, {1.0, 1.0});
+    Run(o, in, initial, sm, ne);
+}
+
 // none, as in the EasyLocal 4 example: no delta; mixed: the overload delta
 // only; all: the overload and the load-imbalance deltas.
 void RunAssignment(const Options& o)
@@ -252,6 +289,8 @@ int main(int argc, char* argv[])
         Random::SetSeed(o.seed);
         if (o.problem == "tsp")
             RunTsp(o);
+        else if (o.problem == "tsp-union")
+            RunTspUnion(o);
         else if (o.problem == "assignment")
             RunAssignment(o);
         else if (o.problem == "exam")

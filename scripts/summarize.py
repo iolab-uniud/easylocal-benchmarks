@@ -69,10 +69,13 @@ starts a run.
   2-opt, Assignment with job reassignment, Exam Timetabling with exam moves)
   are written in both frameworks with the same cost functions, delta
   evaluations and neighborhood orders, and searched from the same initial
-  solutions. Each is measured with delta evaluations for all its cost
-  components, for some of them, and for none (TSP has a single component, so
-  no mixed mode): the trajectories are the same, only the speed changes. Both
-  frameworks are measured at every release, in the same job on the same
+  solutions. The TSP is searched a second time with the union of the 2-opt and
+  the swap neighborhoods (EasyLocal 3 `SetUnion`, EasyLocal 4
+  `neighborhood_union`), which measures the cost of a compound neighborhood in
+  both frameworks. Each is measured with delta evaluations for all its cost
+  components, for some of them, and for none (the TSP has a single component,
+  so no mixed mode): the trajectories are the same, only the speed changes.
+  Both frameworks are measured at every release, in the same job on the same
   machine.
 - **Infrastructure.** Neighborhood traversal, runner-level search and tracing
   overhead (`infrastructure/` of easylocal-benchmarks).
@@ -106,6 +109,10 @@ INSTANCE_DESCRIPTIONS = {
     "tsp": lambda g: (f"TSP, {g['cities']} cities at random integer coordinates in a "
                       f"{g['coordinate_range']} × {g['coordinate_range']} square "
                       "(rounded Euclidean distances)"),
+    "tsp-union": lambda g: (f"TSP, {g['cities']} cities at random integer coordinates in a "
+                            f"{g['coordinate_range']} × {g['coordinate_range']} square "
+                            "(rounded Euclidean distances), searched with the union of the "
+                            "2-opt and the swap neighborhoods"),
     "assignment": lambda g: (f"Assignment, {g['jobs']} jobs of demand 1 to "
                              f"{g['max_demand']} on {g['machines']} machines of equal "
                              f"capacity, {g['capacity_slack']:.0%} of the total demand "

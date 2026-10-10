@@ -75,7 +75,9 @@ def exam(spec, rng):
     return text, initial
 
 
-GENERATORS = {"tsp": tsp, "assignment": assignment, "exam": exam}
+# tsp-union searches the same TSP instances as tsp, with the union of the
+# 2-opt and the swap neighborhoods.
+GENERATORS = {"tsp": tsp, "tsp-union": tsp, "assignment": assignment, "exam": exam}
 
 
 def main() -> int:

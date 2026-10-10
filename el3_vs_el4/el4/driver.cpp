@@ -1,6 +1,6 @@
 // EasyLocal 4 side of the EL3-versus-EL4 benchmark (see README.md).
 //
-//   el4_comparison --problem tsp|assignment|exam --instance FILE
+//   el4_comparison --problem tsp|tsp-union|assignment|exam --instance FILE
 //       --initial FILE --algorithm sd|fd|sa --seed N
 //       --delta-mode all|mixed|none
 //       [--sa-start-temperature T --sa-min-temperature T
@@ -19,9 +19,12 @@
 // them (all), some (mixed) or none, when every move is evaluated on a
 // candidate solution. The examples themselves run all for TSP, none for
 // assignment, mixed for exam. TSP has a single component, hence no mixed
-// mode. The deltas the examples lack are in ../../common.
+// mode. The deltas the examples lack are in ../../common. tsp-union searches
+// the TSP with the union of the 2-opt and the swap neighborhoods of the
+// example, which have a delta each (all) or none (none).
 
 #include <easylocal/app/io.hpp>
+#include <easylocal/helpers/neighborhood_union.hpp>
 #include <easylocal/helpers/recipes.hpp>
 #include <easylocal/runners/best_improvement.hpp>
 #include <easylocal/runners/first_improvement.hpp>
@@ -41,6 +44,8 @@
 #include "exam_timetabling/cost_deltas.hpp"
 #include "exam_timetabling/neighborhood_explorer.hpp"
 #include "tsp/neighborhood_explorer.hpp"
+#include "tsp/swap_neighborhood_explorer.hpp"
+#include "tsp/swap_tour_length_delta.hpp"
 #include "tsp/tour_length_component.hpp"
 #include "tsp/tour_length_delta.hpp"
 
@@ -269,6 +274,35 @@ void run_tsp(const Options& options)
         unsupported_mode(options);
 }
 
+// The union of the 2-opt and the swap neighborhoods (neighborhood_union),
+// the two drawn with the same bias and enumerated one after the other, as the
+// EasyLocal 3 SetUnion. all: the delta of each neighborhood; none: no delta.
+void run_tsp_union(const Options& options)
+{
+    const auto input = el::load_input<tsp::TspInstance>(options.instance);
+    tsp::Tour initial;
+    initial.tour = read_values(options.initial);
+    const auto sm = el::solution_manager<tsp::TspSolutionManager>()
+                  | el::component<tsp::TourLengthComponent>();
+    const auto& mode = options.delta_mode;
+    if (mode == "all")
+        run(options, input, initial, sm,
+            el::neighborhood_union(
+                el::neighborhood<tsp::TwoOptNeighborhoodExplorer>()
+                    | el::delta<tsp::TourLengthComponent, tsp::TwoOptTourLengthDelta>(),
+                el::neighborhood<tsp::SwapCitiesNeighborhoodExplorer>()
+                    | el::delta<tsp::TourLengthComponent, tsp::SwapTourLengthDelta>())
+                | el::random_biases(1.0, 1.0));
+    else if (mode == "none")
+        run(options, input, initial, sm,
+            el::neighborhood_union(
+                el::neighborhood<tsp::TwoOptNeighborhoodExplorer>(),
+                el::neighborhood<tsp::SwapCitiesNeighborhoodExplorer>())
+                | el::random_biases(1.0, 1.0));
+    else
+        unsupported_mode(options);
+}
+
 // EasyLocal 3 adds its hard costs with weight HARD_WEIGHT = 1000.
 // none (the example's configuration): no delta; mixed: the capacity delta
 // only; all: the capacity and the load-imbalance deltas.
@@ -349,6 +383,8 @@ int main(int argc, char* argv[])
         const auto options = parse(argc, argv);
         if (options.problem == "tsp")
             run_tsp(options);
+        else if (options.problem == "tsp-union")
+            run_tsp_union(options);
         else if (options.problem == "assignment")
             run_assignment(options);
         else if (options.problem == "exam")
