@@ -277,10 +277,8 @@ void run_tsp(const Options& options)
 // The union of the 2-opt and the swap neighborhoods (neighborhood_union),
 // the two drawn with the same bias and enumerated one after the other, as the
 // EasyLocal 3 SetUnion. all: the delta of each neighborhood; mixed: the 2-opt
-// delta only; none: no delta. In mixed the union has a component that one
-// child has no delta for, which EasyLocal 4 then evaluates in full for the
-// moves of both children, while EasyLocal 3 keeps using the delta of the
-// child that has one: the trajectory is the same, the work is not.
+// delta only, so that the union has a component one child has no delta for;
+// none: no delta.
 void run_tsp_union(const Options& options)
 {
     const auto input = el::load_input<tsp::TspInstance>(options.instance);

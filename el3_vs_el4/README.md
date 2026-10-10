@@ -68,12 +68,13 @@ modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
 
   "(example)" marks the configuration of the EasyLocal 4 example, the default
   of both drivers. TSP has a single cost component, so it has no `mixed`
-  mode; the union has one, where only the 2-opt moves have a delta. There the
-  two frameworks do different work for the same trajectory: EasyLocal 3 keeps
-  using the delta of the child that has one and evaluates only the swap moves
-  on a copy, while EasyLocal 4, whose union forwards a delta only for a
-  component every child has one for, evaluates the tour length in full for the
-  moves of both. The examples have no whole-solution deltas (EasyLocal commit
+  mode; the union has one, where only the 2-opt moves have a delta, and it
+  measures what a union does with a neighborhood whose delta is missing: both
+  frameworks now keep the delta of the child the move comes from and evaluate
+  only the swap moves on a copy, EasyLocal 3 with `SetUnion`, EasyLocal 4
+  since the union evaluates a component per child (before that it dropped the
+  delta of the whole union, and the mode cost what `none` costs). The examples
+  have no whole-solution deltas (EasyLocal commit
   21bc016): the deltas they lack (assignment overload and load imbalance,
   exam timeslot load) are in `../common/` for EasyLocal 4 and in `el3/` for
   EasyLocal 3, with the same logic. The delta mode changes the speed only,

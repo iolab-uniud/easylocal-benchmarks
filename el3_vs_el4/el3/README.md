@@ -76,10 +76,10 @@ solution.
   then the second, and both draw the neighborhood of a random move by its
   bias. The deltas stay on the children, which the union delegates to, so in
   `--delta-mode mixed` (the 2-opt delta only) the 2-opt moves keep their delta
-  and only the swap moves are evaluated on a copy of the solution; the
-  EasyLocal 4 union instead forwards a delta only for a component that every
-  child has a delta for, and evaluates the tour length in full for the moves of
-  both.
+  and only the swap moves are evaluated on a copy of the solution. The
+  EasyLocal 4 union does the same since it evaluates a component per child;
+  before that it forwarded a delta only for a component every child had one
+  for, so the mode cost there what `none` costs.
 - Algorithms: `sd` is `SteepestDescent`; `fd` is `FirstDescent`; `sa` is `SimulatedAnnealing` with
   `start_temperature`, `min_temperature`, `cooling_rate` and
   `max_neighbors_sampled` set (no computed start temperature, no
