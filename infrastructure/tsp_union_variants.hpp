@@ -12,10 +12,13 @@
 
 #include "tsp/neighborhood_explorer.hpp"
 #include "tsp/swap_neighborhood_explorer.hpp"
+#include "tsp/swap_tour_length_delta.hpp"
+#include "tsp/tour_length_delta.hpp"
 
 #include <easylocal/helpers/neighborhood_union.hpp>
 #include <easylocal/helpers/recipes.hpp>
 #include <easylocal/utils/generator.hpp>
+#include <easylocal/utils/input_base.hpp>
 
 #include <cstddef>
 #include <utility>
@@ -119,6 +122,39 @@ private:
     TwoOptNeighborhoodExplorer two_opt_;
     SwapCitiesNeighborhoodExplorer swap_;
     const TspSolutionManager& solution_manager_;
+};
+
+// The tour length delta of both children in one component: it visits the
+// tagged move and calls the delta of the child it comes from, which is what a
+// union does through the binding it holds per child. Attached to
+// ChildAfterChildExplorer, it gives a search the same deltas as the union,
+// with the dispatch written by hand.
+class UnionTourLengthDelta : public easylocal::input_base<::tsp::TspInstance>
+{
+public:
+    using input_base::input_base;
+
+    [[nodiscard]]
+    auto delta_evaluate(const Tour& solution, const union_move_type& move) const
+        -> double
+    {
+        return std::visit(
+            [&](const auto& tagged) {
+                if constexpr (tagged.index == 0)
+                {
+                    return two_opt_.delta_evaluate(solution, tagged.value);
+                }
+                else
+                {
+                    return swap_.delta_evaluate(solution, tagged.value);
+                }
+            },
+            move);
+    }
+
+private:
+    ::tsp::TwoOptTourLengthDelta two_opt_{input()};
+    ::tsp::SwapTourLengthDelta swap_{input()};
 };
 
 } // namespace easylocal::benchmark::neighborhood_traversal::tsp_union

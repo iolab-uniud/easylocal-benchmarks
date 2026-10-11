@@ -26,6 +26,11 @@ The benchmark keeps the implementations that are architecturally relevant:
 - `coroutine-range` (search benchmark): the example's explorer, whose
   `moves()` is an `easylocal::generator` coroutine.
 
+The search benchmark has the same comparison under a runner, `tsp-union`: the
+union with a delta per child against one explorer that enumerates the children
+one after the other and one delta that visits the move. Both reach the same
+solution, which the benchmark checks before timing them.
+
 The traversal benchmark also has a union domain, `tsp-union-medium`: the
 `neighborhood_union` of the 2-opt and the swap neighborhoods of the example
 against the same moves enumerated by one child and then the other

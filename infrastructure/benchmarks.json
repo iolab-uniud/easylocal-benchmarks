@@ -5,7 +5,8 @@
     "legend": {
       "Domains": {
         "assignment": "Assignment, 96 jobs on 8 machines, job reassignment moves",
-        "tsp": "TSP, 64 cities, 2-opt moves"
+        "tsp": "TSP, 64 cities, 2-opt moves",
+        "tsp-union": "TSP, 64 cities, the union of the 2-opt and the swap neighborhoods (neighborhood_union), each child with its own tour-length delta"
       },
       "Algorithms": {
         "first-improvement": "`runners::FirstImprovement`, which applies the first improving move of each scan",
@@ -14,7 +15,9 @@
       "Variants": {
         "raw-cursor": "the algorithm written by hand, calling `first_move` and `next_move` of a cursor explorer of the benchmark (the one the examples had until EasyLocal 4.0.0-alpha.1) directly, without a range and outside the runner framework: the reference the others are measured against",
         "cursor-range": "the stock runner iterating `easylocal::moves`, which turns the `first_move`/`next_move` cursor of the same explorer into a lazy range holding one move, without materializing the neighborhood: the difference from `raw-cursor` is the cost of the range and the runner",
-        "coroutine-range": "the stock runner on the example's explorer, whose `moves()` is a coroutine (`easylocal::generator`, which is `std::generator` where the standard library provides it), as a user would write it"
+        "coroutine-range": "the stock runner on the example's explorer, whose `moves()` is a coroutine (`easylocal::generator`, which is `std::generator` where the standard library provides it), as a user would write it",
+        "union": "the `neighborhood_union` of the two neighborhoods, whose iterator and delta bindings dispatch on the variant that is its move (tsp-union only)",
+        "child-after-child": "the same moves, of the same type and in the same order, from one child and then the other, with one delta that visits the move and calls the delta of the child it comes from: the union's own machinery written by hand (tsp-union only)"
       }
     }
   },

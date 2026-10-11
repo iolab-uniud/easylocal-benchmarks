@@ -1,4 +1,5 @@
 #include "assignment_variants.hpp"
+#include "tsp_union_variants.hpp"
 #include "tsp_variants.hpp"
 
 #include <easylocal/runners/best_improvement.hpp>
@@ -790,6 +791,90 @@ void benchmark_tsp(
         trials);
 }
 
+// The union of the 2-opt and the swap neighborhoods searched by a runner:
+// what the union costs over the same moves and the same deltas with the
+// dispatch written by hand, which the traversal benchmark measures for the
+// enumeration alone.
+void benchmark_tsp_union(
+    const std::size_t target_evaluations,
+    const std::size_t trials)
+{
+    namespace variants = bench::tsp_union;
+
+    const auto benchmark_case = make_tsp_case();
+    const auto manager_recipe =
+        easylocal::solution_manager<tsp::TspSolutionManager>()
+        | easylocal::component<tsp::TourLengthComponent>();
+    const auto union_recipe = easylocal::neighborhood_union(
+        easylocal::neighborhood<tsp::TwoOptNeighborhoodExplorer>()
+            | easylocal::delta<tsp::TourLengthComponent, tsp::TwoOptTourLengthDelta>(),
+        easylocal::neighborhood<tsp::SwapCitiesNeighborhoodExplorer>()
+            | easylocal::delta<tsp::TourLengthComponent, tsp::SwapTourLengthDelta>());
+    const auto child_after_child_recipe =
+        easylocal::neighborhood<variants::ChildAfterChildExplorer>()
+        | easylocal::delta<tsp::TourLengthComponent, variants::UnionTourLengthDelta>();
+
+    const auto same_solution = [](const tsp::Tour& lhs, const tsp::Tour& rhs) {
+        return lhs.tour == rhs.tour;
+    };
+    const auto token = [](const auto& result) {
+        auto value = std::bit_cast<std::uint64_t>(result.cost);
+        value ^= static_cast<std::uint64_t>(result.evaluations) << 1;
+        value ^= static_cast<std::uint64_t>(result.termination) << 33;
+        if (!result.solution.tour.empty())
+        {
+            value ^= static_cast<std::uint64_t>(result.solution.tour.front() + 1)
+                * 1'000'003ULL;
+            value ^= static_cast<std::uint64_t>(result.solution.tour.back() + 1)
+                * 65'537ULL;
+        }
+        return value;
+    };
+
+    constexpr std::size_t algorithm_budget = 500'000;
+    const auto first_parameters = runners::FirstImprovementParameters{
+        .max_evaluations = algorithm_budget,
+    };
+    const auto best_parameters = runners::BestImprovementParameters{
+        .max_evaluations = algorithm_budget,
+    };
+
+    const auto run_algorithm = [&]<class Algorithm>(
+        const std::string_view algorithm_name,
+        Algorithm algorithm) {
+        // The two reach the same solution: the benchmark compares their cost,
+        // not their results.
+        const auto with_union = run_once(
+            algorithm, benchmark_case.instance, benchmark_case.initial,
+            manager_recipe, union_recipe);
+        const auto child_after_child = run_once(
+            algorithm, benchmark_case.instance, benchmark_case.initial,
+            manager_recipe, child_after_child_recipe);
+        if (!same_result(with_union, child_after_child, same_solution))
+        {
+            std::cerr << "union search semantic mismatch: tsp-union/"
+                      << algorithm_name << '\n';
+            std::exit(2);
+        }
+
+        benchmark_variant(
+            "tsp-union", algorithm_name, "union", algorithm,
+            benchmark_case.instance, benchmark_case.initial, manager_recipe,
+            union_recipe, token, target_evaluations, trials);
+        benchmark_variant(
+            "tsp-union", algorithm_name, "child-after-child", algorithm,
+            benchmark_case.instance, benchmark_case.initial, manager_recipe,
+            child_after_child_recipe, token, target_evaluations, trials);
+    };
+
+    run_algorithm(
+        "first-improvement",
+        stock<runners::FirstImprovement>{first_parameters});
+    run_algorithm(
+        "best-improvement",
+        stock<runners::BestImprovement>{best_parameters});
+}
+
 [[nodiscard]]
 auto parse_positive(
     const int argc,
@@ -869,5 +954,6 @@ int main(int argc, char** argv)
 
     benchmark_assignment(target_evaluations, trials, seed);
     benchmark_tsp(target_evaluations, trials);
+    benchmark_tsp_union(target_evaluations, trials);
     return 0;
 }
