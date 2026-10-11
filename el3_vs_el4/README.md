@@ -17,7 +17,7 @@ Both drivers take the same command line,
 
 ```text
 --problem tsp|tsp-union|assignment|exam --instance FILE --initial FILE
---algorithm sd|fd|sa --seed N --delta-mode all|mixed|none
+--algorithm sd|fd|rfd|sa --seed N --delta-mode all|mixed|none
 [--sa-start-temperature T --sa-min-temperature T --sa-cooling-rate R --sa-samples N]
 ```
 
@@ -91,9 +91,16 @@ modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
   `BestImprovement`) and first descent (EL3 `FirstDescent`, EL4
   `FirstImprovement`) until a local optimum; simulated annealing with the same
   geometric schedule (EL3 `SimulatedAnnealing`, EL4 `SimulatedAnnealing<Classic>`).
-  Each framework runs its own stock algorithm.
+  Each framework runs its own stock algorithm. `rfd` adds the first descent
+  the two frameworks run the same way: the EasyLocal 4 driver scans from a
+  move drawn at random and wraps around, over cursor explorers that derive
+  from the examples' own, where `fd` scans from the first move.
 - **Known differences.** EL3 `FirstDescent` starts each scan from a random
-  move, EL4 `FirstImprovement` from the first one; EL3
+  move, EL4 `FirstImprovement` from the first one, which is what `rfd`
+  removes: `fd` evaluates many more moves per iteration on a large
+  neighborhood, and on a union, enumerated child after child, it evaluates
+  almost only moves of the first child, so a delta on that child alone looks
+  free. EL3
   `SteepestDescent` breaks ties at random, EL4 `BestImprovement` keeps the
   first best move; simulated annealing uses each framework's random numbers.
   The speed-up is therefore measured per evaluation. For a component without

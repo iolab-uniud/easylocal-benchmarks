@@ -2,7 +2,7 @@
 // and output as ../el4/driver.cpp:
 //
 //   el3_comparison --problem tsp|tsp-union|assignment|exam --instance FILE
-//       --initial FILE --algorithm sd|fd|sa --seed N
+//       --initial FILE --algorithm sd|fd|rfd|sa --seed N
 //       --delta-mode all|mixed|none
 //       [--sa-start-temperature T --sa-min-temperature T
 //        --sa-cooling-rate R --sa-samples N]
@@ -123,9 +123,12 @@ void Run(const Options& o, const Input& in, const Solution& initial,
         SteepestDescent<Input, Solution, Move, CostStructure> runner(in, sm, ne, "sd");
         timed(runner);
     }
-    else if (o.algorithm == "fd")
+    else if (o.algorithm == "fd" || o.algorithm == "rfd")
     {
-        FirstDescent<Input, Solution, Move, CostStructure> runner(in, sm, ne, "fd");
+        // One runner for both: FirstDescent scans from a random move, which
+        // `fd` compares with EasyLocal 4's FirstImprovement per evaluation and
+        // `rfd` with the same scan on the EasyLocal 4 side.
+        FirstDescent<Input, Solution, Move, CostStructure> runner(in, sm, ne, o.algorithm);
         timed(runner);
     }
     else if (o.algorithm == "sa")

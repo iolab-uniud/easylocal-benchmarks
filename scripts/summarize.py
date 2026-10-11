@@ -46,7 +46,12 @@ spec = importlib.util.spec_from_file_location("el3_vs_el4", ROOT / "scripts" / "
 el3_vs_el4 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(el3_vs_el4)
 
-ALGORITHMS = {"sd": "steepest descent", "fd": "first descent", "sa": "simulated annealing"}
+ALGORITHMS = {
+    "sd": "steepest descent",
+    "fd": "first descent, as each framework ships it",
+    "rfd": "first descent, with the same scan on both sides",
+    "sa": "simulated annealing",
+}
 DELTA_MODES = {
     "all": "every cost component has a delta evaluation",
     "mixed": "some cost components have a delta evaluation, the others are "
@@ -91,6 +96,13 @@ may explore different trajectories: EasyLocal 3 first descent starts each
 scan from a random move, while EasyLocal 4 starts from the first;
 EasyLocal 3 steepest descent breaks ties at random; simulated annealing uses
 each framework's random numbers. Costs are means over the seeds.
+
+A trajectory also decides which moves are evaluated, which a cost per
+evaluation does not correct: scanning from the first move, EasyLocal 4 first
+descent (`fd`) evaluates almost only moves of the first child of a union, so
+a delta on that child alone looks nearly free. `rfd` is the same descent run
+the same way on both sides, scanning from a move drawn at random, and is the
+row to read when the deltas differ between the children of a union.
 """
 
 DISCLAIMER = """\
