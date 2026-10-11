@@ -52,11 +52,8 @@
     "sd": {
       "description": "steepest descent (EL3 SteepestDescent, EL4 BestImprovement), until a local optimum"
     },
-    "fd": {
-      "description": "first descent, as each framework ships it (EL3 FirstDescent, which scans from a move drawn at random; EL4 FirstImprovement, which restarts at the first move), until a local optimum: the two walk different trajectories, so compare them per evaluation and not by the time of a run"
-    },
     "rfd": {
-      "description": "first descent with the same scan on both sides (EL3 FirstDescent; EL4 a first improvement of the driver, over cursor explorers that derive from the examples' own), each iteration scanning from a move drawn at random and wrapping around, until a local optimum: the trajectories and the mix of the moves evaluated agree, which `fd` does not give on a large neighborhood or on a union"
+      "description": "first descent, scanned the same way on both sides (EL3 FirstDescent; EL4 a first improvement of the driver, over cursor explorers that derive from the examples' own), each iteration scanning from a move drawn at random and wrapping around, until a local optimum. The library's own FirstImprovement restarts at the first move instead, which walks another trajectory and evaluates another mix of moves: on a union, enumerated child after child, it reaches almost only the first child, so a delta on that child alone looks nearly free. It is measured by the infrastructure benchmarks, not here, where the two frameworks must do the same work"
     },
     "sa": {
       "description": "simulated annealing with a geometric schedule (EL3 SimulatedAnnealing, EL4 SimulatedAnnealing<Classic>)"

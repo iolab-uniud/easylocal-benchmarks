@@ -88,19 +88,22 @@ modes of each problem are below); `scripts/el3-vs-el4.py` writes it in the
   load imbalance` (EasyLocal 3 weighs hard costs by `HARD_WEIGHT = 1000`), Exam
   Timetabling `1000 · conflicts + 10 · consecutive exams + timeslot load`.
 - **Algorithms.** Steepest descent (EL3 `SteepestDescent`, EL4
-  `BestImprovement`) and first descent (EL3 `FirstDescent`, EL4
-  `FirstImprovement`) until a local optimum; simulated annealing with the same
-  geometric schedule (EL3 `SimulatedAnnealing`, EL4 `SimulatedAnnealing<Classic>`).
-  Each framework runs its own stock algorithm. `rfd` adds the first descent
-  the two frameworks run the same way: the EasyLocal 4 driver scans from a
-  move drawn at random and wraps around, over cursor explorers that derive
-  from the examples' own, where `fd` scans from the first move.
+  `BestImprovement`) until a local optimum; simulated annealing with the same
+  geometric schedule (EL3 `SimulatedAnnealing`, EL4 `SimulatedAnnealing<Classic>`);
+  first descent scanned the same way on both sides, `rfd`: EL3 `FirstDescent`
+  against a first improvement of the EasyLocal 4 driver that scans from a move
+  drawn at random and wraps around, over cursor explorers that derive from the
+  examples' own. The drivers still take `--algorithm fd`, EL4's stock
+  `FirstImprovement` against EL3's `FirstDescent`, but the matrix does not
+  measure it: the two scan the neighborhood differently, so a comparison of
+  their speed says little (see below).
 - **Known differences.** EL3 `FirstDescent` starts each scan from a random
-  move, EL4 `FirstImprovement` from the first one, which is what `rfd`
-  removes: `fd` evaluates many more moves per iteration on a large
-  neighborhood, and on a union, enumerated child after child, it evaluates
-  almost only moves of the first child, so a delta on that child alone looks
-  free. EL3
+  move, EL4 `FirstImprovement` from the first one: it evaluates many more
+  moves per iteration on a large neighborhood, and on a union, enumerated
+  child after child, it evaluates almost only moves of the first child, so a
+  delta on that child alone looks free. Measured as `fd` on tsp-union-300 in
+  mixed mode that gave a speed-up of 41x, against about 2x everywhere else;
+  `rfd` scans the same way on both sides and gives 2x there too. EL3
   `SteepestDescent` breaks ties at random, EL4 `BestImprovement` keeps the
   first best move; simulated annealing uses each framework's random numbers.
   The speed-up is therefore measured per evaluation. For a component without
