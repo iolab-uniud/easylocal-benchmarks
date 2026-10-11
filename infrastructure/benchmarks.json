@@ -23,7 +23,8 @@
     "legend": {
       "Domains": {
         "assignment-medium": "Assignment, 256 jobs on 32 machines, job reassignment moves",
-        "tsp-medium": "TSP, 256 cities, 2-opt moves"
+        "tsp-medium": "TSP, 256 cities, 2-opt moves",
+        "tsp-union-medium": "TSP, 256 cities, the union of the 2-opt and the swap neighborhoods (neighborhood_union), enumerated one child after the other"
       },
       "Workloads": {
         "traversal": "reads only the fields of each move, so the time is the cost of producing the moves",
@@ -32,7 +33,9 @@
       "Variants": {
         "cursor": "a cursor explorer of the benchmark, with `first_move` and `next_move` (the one the examples had until EasyLocal 4.0.0-alpha.1), iterated through `easylocal::moves`",
         "coroutine-custom": "`moves()` as a coroutine of a minimal generator of the benchmark, like the `easylocal::generator` of a standard library without `std::generator`",
-        "coroutine-std": "`moves()` as a `std::generator`, where the standard library provides it"
+        "coroutine-std": "`moves()` as a `std::generator`, where the standard library provides it",
+        "union": "the `neighborhood_union` of the two neighborhoods, whose iterator holds a variant of its children's and visits it to advance and to build each move",
+        "child-after-child": "the same moves, of the same type and in the same order, enumerated by one child and then the other without that iterator: what the union's dispatch costs is the difference"
       }
     }
   },

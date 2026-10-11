@@ -26,6 +26,14 @@ The benchmark keeps the implementations that are architecturally relevant:
 - `coroutine-range` (search benchmark): the example's explorer, whose
   `moves()` is an `easylocal::generator` coroutine.
 
+The traversal benchmark also has a union domain, `tsp-union-medium`: the
+`neighborhood_union` of the 2-opt and the swap neighborhoods of the example
+against the same moves enumerated by one child and then the other
+(`child-after-child`). A union's iterator holds a variant of its children's
+and visits it to advance and to build each move; the difference between the
+two variants is what that dispatch costs, and the two workloads say whether
+it is in producing the moves or in reading them.
+
 Since EasyLocal 4.0.0-alpha.1 the Assignment and TSP examples enumerate their
 moves with an `easylocal::generator` and no longer have a cursor: the cursor
 explorers are the benchmark's own (`CursorNeighborhoodExplorer` in

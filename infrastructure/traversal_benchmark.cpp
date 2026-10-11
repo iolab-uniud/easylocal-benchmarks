@@ -1,4 +1,5 @@
 #include "assignment_variants.hpp"
+#include "tsp_union_variants.hpp"
 #include "tsp_variants.hpp"
 
 #include <easylocal/helpers/neighborhood_explorer.hpp>
@@ -71,6 +72,47 @@ auto validate_assignment_variants() -> bool
     }
 #endif
     return true;
+}
+
+// The union and the child-after-child enumeration give the same moves, in the
+// same order: the benchmark compares the cost of the two, not their results.
+[[nodiscard]]
+auto validate_tsp_union_variants() -> bool
+{
+    constexpr std::size_t city_count = 6;
+    const tsp::TspInstance instance{
+        .city_count = city_count,
+        .distances = std::vector<tsp::distance_type>(
+            city_count * city_count,
+            0.0),
+    };
+    const tsp::Tour solution{.tour = {0, 1, 2, 3, 4, 5}};
+    const tsp::TspSolutionManager manager{instance};
+
+    const auto neighborhood_union = bench::tsp_union::make_union(manager);
+    const bench::tsp_union::ChildAfterChildExplorer child_after_child{manager};
+
+    const auto encode = [](const bench::tsp_union::union_move_type& move) {
+        return std::visit(
+            [index = move.index()](const auto& tagged) -> std::uint64_t {
+                if constexpr (tagged.index == 0)
+                {
+                    return static_cast<std::uint64_t>(tagged.value.first_edge) * 1024ULL
+                        + static_cast<std::uint64_t>(tagged.value.second_edge);
+                }
+                else
+                {
+                    return 1'000'000ULL
+                        + static_cast<std::uint64_t>(tagged.value.first_position)
+                            * 1024ULL
+                        + static_cast<std::uint64_t>(tagged.value.second_position);
+                }
+            },
+            move);
+    };
+
+    return encoded_moves(easylocal::moves(neighborhood_union, solution), encode)
+        == encoded_moves(easylocal::moves(child_after_child, solution), encode);
 }
 
 [[nodiscard]]
@@ -344,12 +386,10 @@ void benchmark_assignment(
     run_workload("light-consumer", light_consumer);
 }
 
-void benchmark_tsp(
-    const std::string_view scale,
-    const std::size_t city_count,
-    const std::size_t target_moves,
-    const std::size_t trials,
-    const std::uint64_t seed)
+// The instance of the TSP domains: symmetric distances from the seed.
+[[nodiscard]]
+auto make_tsp_instance(const std::size_t city_count, const std::uint64_t seed)
+    -> tsp::TspInstance
 {
     tsp::TspInstance instance{
         .city_count = city_count,
@@ -357,14 +397,6 @@ void benchmark_tsp(
             city_count * city_count,
             0.0),
     };
-    tsp::Tour solution{
-        .tour = std::vector<tsp::city_id>(city_count),
-    };
-
-    for (std::size_t city = 0; city < city_count; ++city)
-    {
-        solution.tour[city] = city;
-    }
 
     for (std::size_t first = 0; first < city_count; ++first)
     {
@@ -378,6 +410,26 @@ void benchmark_tsp(
             instance.distances[first * city_count + second] = distance;
             instance.distances[second * city_count + first] = distance;
         }
+    }
+
+    return instance;
+}
+
+void benchmark_tsp(
+    const std::string_view scale,
+    const std::size_t city_count,
+    const std::size_t target_moves,
+    const std::size_t trials,
+    const std::uint64_t seed)
+{
+    const auto instance = make_tsp_instance(city_count, seed);
+    tsp::Tour solution{
+        .tour = std::vector<tsp::city_id>(city_count),
+    };
+
+    for (std::size_t city = 0; city < city_count; ++city)
+    {
+        solution.tour[city] = city;
     }
 
     const tsp::TspSolutionManager manager{instance};
@@ -428,6 +480,88 @@ void benchmark_tsp(
     run_workload("light-consumer", light_consumer);
 }
 
+// The union of the 2-opt and the swap neighborhoods: what its enumeration
+// costs over enumerating the same moves child after child, which is the
+// dispatch of the union's iterator on the variant that is its move.
+void benchmark_tsp_union(
+    const std::string_view scale,
+    const std::size_t city_count,
+    const std::size_t target_moves,
+    const std::size_t trials,
+    const std::uint64_t seed)
+{
+    const auto instance = make_tsp_instance(city_count, seed);
+    ::tsp::Tour solution{.tour = std::vector<::tsp::city_id>(city_count)};
+    for (std::size_t city = 0; city < city_count; ++city)
+    {
+        solution.tour[city] = city;
+    }
+
+    const ::tsp::TspSolutionManager manager{instance};
+    namespace variants = bench::tsp_union;
+    const auto neighborhood_union = variants::make_union(manager);
+    const variants::ChildAfterChildExplorer child_after_child{manager};
+
+    const auto traversal_consumer = [](const variants::union_move_type& move) {
+        return std::visit(
+            [](const auto& tagged) -> std::uint64_t {
+                if constexpr (tagged.index == 0)
+                {
+                    return static_cast<std::uint64_t>(tagged.value.first_edge)
+                               * 1'000'003ULL
+                         + static_cast<std::uint64_t>(tagged.value.second_edge);
+                }
+                else
+                {
+                    return static_cast<std::uint64_t>(tagged.value.first_position)
+                               * 1'000'033ULL
+                         + static_cast<std::uint64_t>(tagged.value.second_position);
+                }
+            },
+            move);
+    };
+
+    // A move evaluated as a delta would: four distances of the tour.
+    const auto light_consumer = [&](const variants::union_move_type& move) {
+        const auto size = solution.tour.size();
+        const auto edges = std::visit(
+            [](const auto& tagged) -> std::pair<std::size_t, std::size_t> {
+                if constexpr (tagged.index == 0)
+                {
+                    return {tagged.value.first_edge, tagged.value.second_edge};
+                }
+                else
+                {
+                    return {tagged.value.first_position, tagged.value.second_position};
+                }
+            },
+            move);
+        const auto first = solution.tour[edges.first];
+        const auto first_next = solution.tour[(edges.first + 1) % size];
+        const auto second = solution.tour[edges.second];
+        const auto second_next = solution.tour[(edges.second + 1) % size];
+
+        auto token = traversal_consumer(move);
+        token ^= std::bit_cast<std::uint64_t>(instance.distance(first, first_next));
+        token ^= std::bit_cast<std::uint64_t>(instance.distance(second, second_next));
+        token ^= std::bit_cast<std::uint64_t>(instance.distance(first, second));
+        token ^= std::bit_cast<std::uint64_t>(
+            instance.distance(first_next, second_next));
+        return token;
+    };
+
+    const auto run_workload = [&](const std::string_view workload, auto consume) {
+        const auto domain = std::string{"tsp-union-"} + std::string{scale};
+        run_case(domain, workload, "union", neighborhood_union, solution, consume,
+                 target_moves, trials);
+        run_case(domain, workload, "child-after-child", child_after_child, solution,
+                 consume, target_moves, trials);
+    };
+
+    run_workload("traversal", traversal_consumer);
+    run_workload("light-consumer", light_consumer);
+}
+
 } // namespace
 
 int main(const int argc, char** argv)
@@ -450,7 +584,8 @@ int main(const int argc, char** argv)
         << "domain,workload,variant,neighborhood_size,trial,repetitions,"
            "measured_moves,ns_per_move,checksum\n";
 
-    if (!validate_assignment_variants() || !validate_tsp_variants())
+    if (!validate_assignment_variants() || !validate_tsp_variants()
+        || !validate_tsp_union_variants())
     {
         std::cerr << "neighborhood traversal variants disagree\n";
         return 1;
@@ -458,6 +593,7 @@ int main(const int argc, char** argv)
 
     benchmark_assignment("medium", 256, 32, target_moves, trials, seed);
     benchmark_tsp("medium", 256, target_moves, trials, seed);
+    benchmark_tsp_union("medium", 256, target_moves, trials, seed);
 
     return 0;
 }
