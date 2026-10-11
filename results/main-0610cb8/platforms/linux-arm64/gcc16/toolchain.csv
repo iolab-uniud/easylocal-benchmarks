@@ -1,0 +1,8 @@
+key,value
+toolchain,gcc16
+compiler,gcc
+compiler_version,16.0.1 20260322 (experimental) [trunk r16-8246-g569ace1fa50]
+stdlib,libstdc++
+stdlib_version,20260322
+cxxflags,-O3 -DNDEBUG
+cpp_standard,202302
