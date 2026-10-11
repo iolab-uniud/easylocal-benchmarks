@@ -1,0 +1,15 @@
+{
+  "framework": "el4",
+  "label": "main-be1faee",
+  "platform_id": "linux-arm64",
+  "toolchain": "clang23-libstdcxx",
+  "matrix_key": "19ec7778fb43bc90",
+  "delta_modes": [
+    "all"
+  ],
+  "repetitions": 3,
+  "commit": "b527f1702445fccc8fae347f2ff63650270606e1",
+  "date": "2026-10-11T07:10:44+00:00",
+  "platform": "Linux aarch64",
+  "runner_image": "ubuntu26-arm64 20260927.135.1"
+}
