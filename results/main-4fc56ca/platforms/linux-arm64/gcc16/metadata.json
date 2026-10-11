@@ -1,0 +1,15 @@
+{
+  "framework": "el4",
+  "label": "main-4fc56ca",
+  "platform_id": "linux-arm64",
+  "toolchain": "gcc16",
+  "matrix_key": "d99e4ffe2f364b64",
+  "delta_modes": [
+    "all"
+  ],
+  "repetitions": 3,
+  "commit": "ceea7b2491486947bc3756183d01be27b4a43b37",
+  "date": "2026-10-11T15:17:45+00:00",
+  "platform": "Linux aarch64",
+  "runner_image": "ubuntu26-arm64 20260927.135.1"
+}

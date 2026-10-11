@@ -1,0 +1,16 @@
+trial,cost_model,ns_per_event,bytes_per_event,event_count
+1,scalar-i64,6.78112,41,1000000
+1,lexicographic-2xi64,7.14428,57,1000000
+1,hierarchical-2xi64-plus-i64,8.44837,73,1000000
+2,scalar-i64,7.27306,41,1000000
+2,lexicographic-2xi64,7.07329,57,1000000
+2,hierarchical-2xi64-plus-i64,8.41608,73,1000000
+3,scalar-i64,6.64668,41,1000000
+3,lexicographic-2xi64,7.52936,57,1000000
+3,hierarchical-2xi64-plus-i64,8.55487,73,1000000
+4,scalar-i64,6.17174,41,1000000
+4,lexicographic-2xi64,7.18934,57,1000000
+4,hierarchical-2xi64-plus-i64,8.51482,73,1000000
+5,scalar-i64,6.14658,41,1000000
+5,lexicographic-2xi64,7.63348,57,1000000
+5,hierarchical-2xi64-plus-i64,9.13044,73,1000000

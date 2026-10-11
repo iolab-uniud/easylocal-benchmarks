@@ -1,0 +1,8 @@
+key,value
+toolchain,appleclang
+compiler,appleclang
+compiler_version,21.0.0 (clang-2100.1.1.101)
+stdlib,libc++
+stdlib_version,210106
+cxxflags,-O3 -DNDEBUG
+cpp_standard,202302
